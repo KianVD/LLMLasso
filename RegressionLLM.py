@@ -32,7 +32,7 @@ while currTrial < TRIALS:
     currTrial += 1
     #now feed headers and context to chatgpt and ask it to return which n features to include in readable format
     n = 10 # f string doesn't work for some reason
-    with open("contextSwarm.txt","r") as f:
+    with open("contextBreast.txt","r") as f:
         context = f.read()
     #get full response
     response = client.chat.completions.create(
@@ -40,7 +40,8 @@ while currTrial < TRIALS:
                 messages=[{"role":"developer","content": context + """Your Task:
                             Please print only a list of exactly 10 features based on the above data in a python readable format maintaining the exact feature names while not changing capitalization, 
                         For example, when given a list of features: feature1 FeaTure2 ftr3 : you would return: feature1 FeaTure2 ftr3 . Also, selecting these features from the following based on their 
-                        relevance and likelyhood to predict the variable given by and using the context. Let me stress again the importance of returning exactly 10 features without changing their names."""},
+                        relevance and likelyhood to predict the variable given by and using the context. Let me stress again the importance of returning exactly 10 features without changing their 
+                           names from the given input in any way."""},
                         {"role":"user","content":" ".join(headers)},
                 ],
             )
