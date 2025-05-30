@@ -4,13 +4,11 @@ import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
 import os
-from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import LabelEncoder
 le = LabelEncoder()
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score, roc_auc_score,accuracy_score
+from sklearn.linear_model import Lasso
 
 # Use the OpenAI client library to add your API key.
 load_dotenv(dotenv_path="APIKEY.env")
@@ -18,34 +16,31 @@ client = OpenAI(
     api_key = os.getenv("APIKEY")
 )
 
-
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("Swarm_Behaviour.csv")
-y = df["Swarm_Behaviour"]
-
+df = pd.read_csv("METABRIC_RNA_Mutation.csv")
+y = df["overall_survival_months"]
 
 #feed names of these features to ai and ask it to narrow down to top 100 most important (format so that code can read it?)
-df = df.drop(columns=["Swarm_Behaviour"])
+df = df.drop(columns=["overall_survival_months","overall_survival","death_from_cancer"])
 headers = df.columns.tolist()
 
 TRIALS = 10
 currTrial = 0
-acc = list()
-f1 = list()
-rocauc = list()
+r2s = list()
+mses = list()
 while currTrial < TRIALS:
     currTrial += 1
     #now feed headers and context to chatgpt and ask it to return which n features to include in readable format
-    n = 100 # f string doesn't work for some reason
+    n = 10 # f string doesn't work for some reason
     with open("contextSwarm.txt","r") as f:
         context = f.read()
     #get full response
     response = client.chat.completions.create(
                 model = "gpt-3.5-turbo",
                 messages=[{"role":"developer","content": context + """Your Task:
-                            Please print only a list of exactly 100 features based on the above data in a python readable format maintaining the exact feature names while not changing capitalization, 
+                            Please print only a list of exactly 10 features based on the above data in a python readable format maintaining the exact feature names while not changing capitalization, 
                         For example, when given a list of features: feature1 FeaTure2 ftr3 : you would return: feature1 FeaTure2 ftr3 . Also, selecting these features from the following based on their 
-                        relevance and likelyhood to predict the variable given by and using the context. Let me stress again the importance of returning exactly 100 features without changing their names."""},
+                        relevance and likelyhood to predict the variable given by and using the context. Let me stress again the importance of returning exactly 10 features without changing their names."""},
                         {"role":"user","content":" ".join(headers)},
                 ],
             )
@@ -61,7 +56,7 @@ while currTrial < TRIALS:
 
     newdf=pd.DataFrame()
     valid_cols = [col for col in newHeaders if col in df.columns]
-    valid_cols = valid_cols[:100]#if the llm returns more than 100 valid features then cut it off
+    valid_cols = valid_cols[:10] #cut off any extra columns if llm included too many
     newdf = df[valid_cols].copy()
 
     print("Number of columsn:" ,len(newdf.columns))
@@ -85,23 +80,21 @@ while currTrial < TRIALS:
     X_train, X_test, y_train, y_test = train_test_split(newdf, y, test_size=0.2)
 
     # Fit logistic regression model
-    model = LogisticRegression(penalty='l1', solver='liblinear')
+    model = Lasso(alpha=0.1)
     model.fit(X_train, y_train)
 
     # Predict and evaluate
     y_pred = model.predict(X_test)
 
-    print("Accuracy:", accuracy_score(y_test, y_pred))
-    acc.append(accuracy_score(y_test, y_pred))
-    print("F1 score:", f1_score(y_test, y_pred))
-    f1.append(f1_score(y_test, y_pred))
-    print("ROC-AUC score:", roc_auc_score(y_test, y_pred))
-    rocauc.append(roc_auc_score(y_test, y_pred))
+    print("R^2 Score:", r2_score(y_test, y_pred))
+    r2s.append(r2_score(y_test, y_pred))
+    print("MSE:", mean_squared_error(y_test, y_pred))
+    mses.append(mean_squared_error(y_test, y_pred))
+    print("RMSE:", np.sqrt(mean_squared_error(y_test, y_pred)))
 
 data = {
-    'acc': acc,
-    'f1': f1,
-    'roc-auc': rocauc
+    'r2': r2s,
+    'mse': mses
 }
 
 outputdf = pd.DataFrame(data)
