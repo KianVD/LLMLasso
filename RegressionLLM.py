@@ -9,6 +9,46 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import LabelEncoder
 le = LabelEncoder()
 from sklearn.linear_model import Lasso
+import csv
+
+def GetLLMFeatures(contextFilepath, featuresToGet, features):
+    #now feed headers and context to chatgpt and ask it to return which n features to include in readable format
+    n = featuresToGet # f string doesn't work for some reason
+    with open(contextFilepath,"r") as f:
+        context = f.read()
+    #get full response
+    response = client.chat.completions.create(
+                model = "gpt-3.5-turbo",
+                messages=[{"role":"developer","content": context + """Your Task:
+                            Please print only a list of exactly 10 features based on the above data in a csv format, seperating features with a comma then a space, 
+                           maintaining the exact feature names while not changing capitalization.
+                        For example, when given a list of features: feature1, FeaTure2, ftr3 : you would return a csv with the selected features, possibly including: feature1, FeaTure2, ftr3, etc. 
+                           Also, selecting these features from the following based on their relevance and likelyhood to predict the variable given by and using the context. 
+                           Let me stress again the importance of returning exactly 10 features without changing their names from the given input in any way, and returning this comma seperated table as specified."""},
+                        {"role":"user","content":" ".join(features)},
+                ],
+            )
+    #get chosen features
+    LLMfeatures = response.choices[0].message.content
+
+    print(LLMfeatures)
+    finalFeatures = LLMfeatures.split(", ")
+
+    return finalFeatures
+
+def NarrowDownDFLLM(df,contextFilePath, featuresToGet):
+    headers = df.columns.tolist()
+
+    #get features chosen by llm
+    newHeaders = GetLLMFeatures(contextFilePath, featuresToGet,headers)
+
+    valid_cols = list()
+    for col in newHeaders:
+        if col in df.columns and col not in valid_cols:
+            valid_cols.append(col)
+    valid_cols = valid_cols[:10] #cut off any extra columns if llm included too many
+    return df[valid_cols].copy()
+
 
 # Use the OpenAI client library to add your API key.
 load_dotenv(dotenv_path="APIKEY.env")
@@ -17,12 +57,20 @@ client = OpenAI(
 )
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("METABRIC_RNA_Mutation.csv")
-y = df["overall_survival_months"]
+df = pd.read_csv("Most Streamed Spotify Songs 2024.csv",encoding='ISO-8859-1')
+y = df["Spotify Streams"] 
+#deal with nan in y
+df = df[~y.isna()]
+y = y.dropna()
+y = y.str.replace(',', '', regex=False).astype('int64')
+
+#drop stupid TIDAL colun
+df = df.drop(columns="TIDAL Popularity")
+
 
 #feed names of these features to ai and ask it to narrow down to top 100 most important (format so that code can read it?)
-df = df.drop(columns=["overall_survival_months","overall_survival","death_from_cancer"])
-headers = df.columns.tolist()
+df = df.drop(columns=["Spotify Streams"])
+
 
 TRIALS = 10
 currTrial = 0
@@ -30,40 +78,16 @@ r2s = list()
 mses = list()
 while currTrial < TRIALS:
     currTrial += 1
-    #now feed headers and context to chatgpt and ask it to return which n features to include in readable format
-    n = 10 # f string doesn't work for some reason
-    with open("contextBreast.txt","r") as f:
-        context = f.read()
-    #get full response
-    response = client.chat.completions.create(
-                model = "gpt-3.5-turbo",
-                messages=[{"role":"developer","content": context + """Your Task:
-                            Please print only a list of exactly 10 features based on the above data in a python readable format maintaining the exact feature names while not changing capitalization, 
-                        For example, when given a list of features: feature1 FeaTure2 ftr3 : you would return: feature1 FeaTure2 ftr3 . Also, selecting these features from the following based on their 
-                        relevance and likelyhood to predict the variable given by and using the context. Let me stress again the importance of returning exactly 10 features without changing their 
-                           names from the given input in any way."""},
-                        {"role":"user","content":" ".join(headers)},
-                ],
-            )
-    #get chosen features
-    LLMfeatures = response.choices[0].message.content
-
-    print(LLMfeatures)
-
-    #run model for results
-
-    #isolate new headers from llm
-    newHeaders = LLMfeatures.split()
-
-    newdf=pd.DataFrame()
-    valid_cols = [col for col in newHeaders if col in df.columns]
-    valid_cols = valid_cols[:10] #cut off any extra columns if llm included too many
-    newdf = df[valid_cols].copy()
+    
+    #get newdf with chosen columns using llm
+    newdf = NarrowDownDFLLM(df,"contextSpotify.txt",10)
 
     print("Number of columsn:" ,len(newdf.columns))
+    if len(newdf.columns) < 1:
+        continue
 
     #fillna for numerical 
-    numerical_cols = newdf.select_dtypes(include=['int','float','double','long']).columns.tolist()
+    numerical_cols = newdf.select_dtypes(include='number').columns.tolist()
 
     for i in range(len(numerical_cols)):
         newdf[numerical_cols[i]] = newdf[numerical_cols[i]].fillna(newdf[numerical_cols[i]].mean())
@@ -74,8 +98,8 @@ while currTrial < TRIALS:
     for i in range(len(categorical_cols)):
         newdf[categorical_cols[i]] = newdf[categorical_cols[i]].astype(str)
         newdf[categorical_cols[i]] = newdf[categorical_cols[i]].fillna(newdf[categorical_cols[i]].mode().iloc[0])
-        #newdf[categorical_cols[i]] = le.fit_transform(newdf[categorical_cols[i]]) #label encoding
-        newdf = pd.concat([newdf.drop(columns=categorical_cols[i]),pd.get_dummies(newdf, columns=[categorical_cols[i]])],axis=1) #one hot encoding
+        newdf[categorical_cols[i]] = le.fit_transform(newdf[categorical_cols[i]]) #label encoding
+        #newdf = pd.concat([newdf.drop(columns=categorical_cols[i]),pd.get_dummies(newdf, columns=[categorical_cols[i]])],axis=1) #one hot encoding
 
     #machine learning or linear regression
     X_train, X_test, y_train, y_test = train_test_split(newdf, y, test_size=0.2)
