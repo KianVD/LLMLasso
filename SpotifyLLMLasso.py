@@ -86,7 +86,7 @@ df['Weekday'] = df['Release Date'].dt.weekday
 
 df = df.drop(columns="Release Date")
 
-#df["ISRC"] = #sepearte into parts TODO
+#df["ISRC"] = #sepearte into parts 
 df["Country Code"] = df["ISRC"].str[:2]
 df["Registrant Code"] = df["ISRC"].str[2:5]
 df["Designation Code"] = df["ISRC"].str[7:12]
