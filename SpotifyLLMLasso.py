@@ -14,6 +14,7 @@ from gurobipy import GRB
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error as mse
 from sklearn import linear_model
+from sklearn.linear_model import LassoCV
 
 options = {
 "WLSACCESSID":"a9ee3346-4b70-4d35-a517-fe1941ffe2ef",
@@ -126,7 +127,8 @@ while currTrial < TRIALS:
     currTrial += 1
     
     #get newdf with chosen columns using llm
-    newdf = NarrowDownDFLLM(df,"contextSpotify.txt",15) #here is where you specify how many features the LLM should choose
+    #newdf = NarrowDownDFLLM(df,"contextSpotify.txt",15) #here is where you specify how many features the LLM should choose
+    newdf = df
 
     print("Number of columsn:" ,len(newdf.columns))
     if len(newdf.columns) < 1:
@@ -141,12 +143,17 @@ while currTrial < TRIALS:
     X_train_std = scaler.transform(X_train)
     X_test_std = scaler.transform(X_test)
 
-    # Lasso with cross-validated penalization (lambda)
+    '''# Lasso with cross-validated penalization (lambda)
     lasso = linear_model.Lasso(alpha=0.1)
     lasso.fit(X_train_std, y_train)
 
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
-    y_pred = lasso.predict(X_test_std)
+    y_pred = lasso.predict(X_test_std)'''
+
+    #cross validaiton
+    lasso_cv = LassoCV(cv=5)
+    lasso_cv.fit(X_train_std, y_train)
+    y_pred = lasso_cv.predict(X_test_std)
 
     print("R^2 Score:", r2_score(y_test, y_pred))
     r2s.append(r2_score(y_test, y_pred))
