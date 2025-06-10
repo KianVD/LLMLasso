@@ -9,7 +9,6 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import LabelEncoder
 le = LabelEncoder()
 from sklearn.linear_model import Lasso
-import csv
 
 def GetLLMFeatures(contextFilepath, featuresToGet, features):
     #now feed headers and context to chatgpt and ask it to return which n features to include in readable format
@@ -20,11 +19,10 @@ def GetLLMFeatures(contextFilepath, featuresToGet, features):
     response = client.chat.completions.create(
                 model = "gpt-3.5-turbo",
                 messages=[{"role":"developer","content": context + """Your Task:
-                            Please print only a list of exactly 10 features based on the above data in a csv format, seperating features with a comma then a space, 
-                           maintaining the exact feature names while not changing capitalization.
-                        For example, when given a list of features: feature1, FeaTure2, ftr3 : you would return a csv with the selected features, possibly including: feature1, FeaTure2, ftr3, etc. 
-                           Also, selecting these features from the following based on their relevance and likelyhood to predict the variable given by and using the context. 
-                           Let me stress again the importance of returning exactly 10 features without changing their names from the given input in any way, and returning this comma seperated table as specified."""},
+                            Please print only a list of exactly 10 features based on the above data in a python readable format maintaining the exact feature names while not changing capitalization, 
+                        For example, when given a list of features: feature1, FeaTure2, ftr3 : you would return: feature1, FeaTure2, ftr3 . Also, selecting these features from the following based on their 
+                        relevance and likelyhood to predict the variable given by and using the context. Let me stress again the importance of returning exactly 10 features without changing their 
+                           names from the given input in any way, and returning this comma seperated as specified"""},
                         {"role":"user","content":" ".join(features)},
                 ],
             )
@@ -32,9 +30,11 @@ def GetLLMFeatures(contextFilepath, featuresToGet, features):
     LLMfeatures = response.choices[0].message.content
 
     print(LLMfeatures)
-    finalFeatures = LLMfeatures.split(", ")
 
-    return finalFeatures
+    #run model for results
+
+    #isolate new headers from llm
+    return LLMfeatures.split(sep=", ")
 
 def NarrowDownDFLLM(df,contextFilePath, featuresToGet):
     headers = df.columns.tolist()
@@ -57,19 +57,12 @@ client = OpenAI(
 )
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("Most Streamed Spotify Songs 2024.csv",encoding='ISO-8859-1')
-y = df["Spotify Streams"] 
-#deal with nan in y
-df = df[~y.isna()]
-y = y.dropna()
-y = y.str.replace(',', '', regex=False).astype('int64')
-
-#drop stupid TIDAL colun
-df = df.drop(columns="TIDAL Popularity")
+df = pd.read_csv("METABRIC_RNA_Mutation.csv")
+y = df["overall_survival_months"]
 
 
 #feed names of these features to ai and ask it to narrow down to top 100 most important (format so that code can read it?)
-df = df.drop(columns=["Spotify Streams"])
+df = df.drop(columns=["overall_survival_months","overall_survival","death_from_cancer"])
 
 
 TRIALS = 10
@@ -80,11 +73,9 @@ while currTrial < TRIALS:
     currTrial += 1
     
     #get newdf with chosen columns using llm
-    newdf = NarrowDownDFLLM(df,"contextSpotify.txt",10)
+    newdf = NarrowDownDFLLM(df,"contextBreast.txt",10)
 
     print("Number of columsn:" ,len(newdf.columns))
-    if len(newdf.columns) < 1:
-        continue
 
     #fillna for numerical 
     numerical_cols = newdf.select_dtypes(include='number').columns.tolist()
