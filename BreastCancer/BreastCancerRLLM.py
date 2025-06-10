@@ -57,7 +57,7 @@ client = OpenAI(
 )
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("METABRIC_RNA_Mutation.csv")
+df = pd.read_csv("BreastCancer/METABRIC_RNA_Mutation.csv")
 y = df["overall_survival_months"]
 
 
@@ -73,7 +73,7 @@ while currTrial < TRIALS:
     currTrial += 1
     
     #get newdf with chosen columns using llm
-    newdf = NarrowDownDFLLM(df,"contextBreast.txt",10)
+    newdf = NarrowDownDFLLM(df,"BreastCancer/contextBreast.txt",10)
 
     print("Number of columsn:" ,len(newdf.columns))
 

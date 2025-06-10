@@ -15,7 +15,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, roc_auc_score,accuracy_score
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("Swarm_Behaviour.csv")
+df = pd.read_csv("SwarmBehaviour/Swarm_Behaviour.csv")
 y = df["Swarm_Behaviour"]
 
 #feed names of these features to ai and ask it to narrow down to top 100 most important (format so that code can read it?)

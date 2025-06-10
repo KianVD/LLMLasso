@@ -10,7 +10,7 @@ import random
 from sklearn.linear_model import Lasso
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("METABRIC_RNA_Mutation.csv")
+df = pd.read_csv("BreastCancer/METABRIC_RNA_Mutation.csv")
 y = df["overall_survival_months"]
 
 #feed names of these features to ai and ask it to narrow down to top 100 most important (format so that code can read it?)

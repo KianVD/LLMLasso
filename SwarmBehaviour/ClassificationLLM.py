@@ -20,7 +20,7 @@ client = OpenAI(
 
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("Swarm_Behaviour.csv")
+df = pd.read_csv("SwarmBehaviour/Swarm_Behaviour.csv")
 y = df["Swarm_Behaviour"]
 
 
@@ -37,7 +37,7 @@ while currTrial < TRIALS:
     currTrial += 1
     #now feed headers and context to chatgpt and ask it to return which n features to include in readable format
     n = 100 # f string doesn't work for some reason
-    with open("contextSwarm.txt","r") as f:
+    with open("SwarmBehaviour/contextSwarm.txt","r") as f:
         context = f.read()
     #get full response
     response = client.chat.completions.create(
