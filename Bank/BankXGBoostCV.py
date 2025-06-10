@@ -13,6 +13,7 @@ from gurobipy import GRB
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error as mse
 from sklearn.metrics import f1_score, roc_auc_score,accuracy_score
+import xgboost as xgb
 
 
 options = {
@@ -202,14 +203,16 @@ while currTrial < TRIALS:
     currTrial += 1
     
     #get newdf with chosen columns using llm
-    newdf = NarrowDownDFLLM(df,"contextBank.txt",15) #here is where you specify how many features the LLM should choose
-
+    newdf = NarrowDownDFLLM(df,"Bank/contextBank.txt",15) #here is where you specify how many features the LLM should choose
+    #newdf = df
+    
     print("Number of columsn:" ,len(newdf.columns))
     if len(newdf.columns) < 1:
         continue
 
     #split data
-    X_train, X_test, y_train, y_test = train_test_split(newdf, y, test_size=0.2)
+    import secrets #import secrets to get better random seed
+    X_train, X_test, y_train, y_test = train_test_split(newdf, y, test_size=0.2, random_state = secrets.randbelow(1_000_000))
 
     #standardize test and train sep
     scaler = StandardScaler()
@@ -217,17 +220,50 @@ while currTrial < TRIALS:
     X_train_std = scaler.transform(X_train)
     X_test_std = scaler.transform(X_test)
 
-    #do best subset selection
-    intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),standardize=True)
+    # Convert to DMatrix (XGBoost's internal format)
+    dtrain = xgb.DMatrix(X_train_std, label=y_train)
 
-    # Predict and evaluate (@ is matrix multiplication) #headers? array types?
-    y_pred = (X_test_std @ coefficients) +intercept
+    # Estimate class imbalance
+    neg, pos = np.bincount(y_train)
+    scale_pos_weight = neg / pos
 
-    y_pred_bin = (y_pred > 0.5).astype(int) #should we do logisitc regression?
+    # Set parameters
+    params = {
+        'objective': 'binary:logistic',
+        'eval_metric': 'auc',
+        'scale_pos_weight': scale_pos_weight,
+        'learning_rate': 0.1,
+        'max_depth': 4
+    }
 
-    acc.append(accuracy_score(y_test, y_pred_bin))
-    f1.append(f1_score(y_test, y_pred_bin))
-    rocauc.append(roc_auc_score(y_test, y_pred_bin))
+    # 5-fold CV
+    cv_results = xgb.cv(
+        params,
+        dtrain,
+        num_boost_round=100,
+        nfold=5,
+        stratified=True,
+        metrics='auc',
+        early_stopping_rounds=10
+    )
+
+    best_n_rounds = len(cv_results)
+    final_model = xgb.train(
+        params,
+        dtrain,
+        num_boost_round=best_n_rounds
+    )
+
+    # To predict:
+    dtest = xgb.DMatrix(X_test_std)
+    y_pred_proba = final_model.predict(dtest)
+    y_pred = (y_pred_proba > 0.5).astype(int)
+
+
+    acc.append(accuracy_score(y_test, y_pred))
+    f1.append(f1_score(y_test, y_pred))
+    print(f1_score(y_test, y_pred))
+    rocauc.append(roc_auc_score(y_test, y_pred))
 
 data = {
     'acc': acc,

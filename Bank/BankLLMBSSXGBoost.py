@@ -204,7 +204,7 @@ while currTrial < TRIALS:
     currTrial += 1
     
     #get newdf with chosen columns using llm
-    newdf = NarrowDownDFLLM(df,"contextBank.txt",15) #here is where you specify how many features the LLM should choose
+    newdf = NarrowDownDFLLM(df,"Bank/contextBank.txt",15) #here is where you specify how many features the LLM should choose
 
     print("Number of columsn:" ,len(newdf.columns))
     if len(newdf.columns) < 1:
