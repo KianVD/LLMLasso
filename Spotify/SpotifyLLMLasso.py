@@ -69,7 +69,7 @@ client = OpenAI(
 )
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("Most Streamed Spotify Songs 2024.csv",encoding='ISO-8859-1') 
+df = pd.read_csv("Spotify/Most Streamed Spotify Songs 2024.csv",encoding='ISO-8859-1') 
 #drop rows where the target is na
 df = df[~df["Spotify Streams"].isna()]
 
