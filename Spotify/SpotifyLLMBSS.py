@@ -221,7 +221,6 @@ currTrial = 0
 r2s = list()
 mses = list()
 while currTrial < TRIALS:
-    currTrial += 1
     
     #get newdf with chosen columns using llm
     newdf = NarrowDownDFLLM(df,"Spotify/contextSpotify.txt",15) #here is where you specify how many features the LLM should choose
@@ -231,7 +230,7 @@ while currTrial < TRIALS:
         continue
 
     #split data
-    X_train, X_test, y_train, y_test = train_test_split(newdf, y, test_size=0.2)
+    X_train, X_test, y_train, y_test = train_test_split(newdf, y, test_size=0.2,random_state = currTrial)
 
     #standardize test and train sep
     scaler = StandardScaler()
@@ -240,7 +239,7 @@ while currTrial < TRIALS:
     X_test_std = scaler.transform(X_test)
 
     #do best subset selection
-    intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),standardize=True)
+    intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),standardize=True,seed=currTrial) # seed is trial number
 
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
     y_pred = (X_test_std @ coefficients) +intercept
@@ -250,6 +249,8 @@ while currTrial < TRIALS:
     print("MSE:", mean_squared_error(y_test, y_pred))
     mses.append(mean_squared_error(y_test, y_pred))
     print("RMSE:", np.sqrt(mean_squared_error(y_test, y_pred)))
+
+    currTrial += 1
 
 data = {
     'r2': r2s,

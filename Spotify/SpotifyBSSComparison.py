@@ -1,5 +1,5 @@
 #for spotify dataset
-#use open ai to narrow down 1000 features to 100, then narrow down those features with best subset selection
+#includes timing and new gurobi functions with max k
 from openai import OpenAI
 import pandas as pd
 import numpy as np
@@ -13,6 +13,7 @@ import gurobipy as gp
 from gurobipy import GRB
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error as mse
+import time
 
 
 options = {
@@ -22,6 +23,44 @@ options = {
 }
 
 env = gp.Env(params=options)
+
+def GetLLMFeatures(contextFilepath, featuresToGet, features):
+    #now feed headers and context to chatgpt and ask it to return which n features to include in readable format
+    n = featuresToGet # f string doesn't work for some reason
+    with open(contextFilepath,"r") as f:
+        context = f.read()
+    #get full response
+    response = client.chat.completions.create(
+                model = "gpt-3.5-turbo",
+                messages=[{"role":"developer","content": context + f"""Your Task:
+                            Please print only a list of exactly {n} features based on the above data in a csv format, seperating features with a comma then a space, 
+                           maintaining the exact feature names while not changing capitalization.
+                        For example, when given a list of features: feature1, FeaTure2, ftr3 : you would return a csv with the selected features, possibly including: feature1, FeaTure2, ftr3, etc. 
+                           Also, selecting these features from the following based on their relevance and likelyhood to predict the variable given by and using the context. 
+                           Let me stress again the importance of returning exactly {n} features without changing their names from the given input in any way, and returning this comma seperated table as specified."""},
+                        {"role":"user","content":" ".join(features)},
+                ],
+            )
+    #get chosen features
+    LLMfeatures = response.choices[0].message.content
+
+    print(LLMfeatures)
+    finalFeatures = LLMfeatures.split(", ")
+
+    return finalFeatures
+
+def NarrowDownDFLLM(df,contextFilePath, featuresToGet):
+    headers = df.columns.tolist()
+
+    #get features chosen by llm
+    newHeaders = GetLLMFeatures(contextFilePath, featuresToGet,headers)
+
+    valid_cols = list()
+    for col in newHeaders:
+        if col in df.columns and col not in valid_cols:
+            valid_cols.append(col)
+    valid_cols = valid_cols[:featuresToGet] #cut off any extra columns if llm included too many
+    return df[valid_cols].copy()
 
 def miqp(features, response, non_zero, verbose=False):
     """
@@ -181,43 +220,60 @@ y = df["Spotify Streams"]
 df = df.drop(columns=["Spotify Streams"])
 
 TRIALS = 10
-currTrial = 0
-r2s = list()
-mses = list()
-while currTrial < TRIALS:
-    
-    #get newdf with chosen columns using llm
-    newdf = df
 
-    print("Number of columsn:" ,len(newdf.columns))
+for model in ["LLMBSS","BSS"]:
 
-    #split data
-    X_train, X_test, y_train, y_test = train_test_split(newdf, y, test_size=0.2,random_state = currTrial)
+    currTrial = 0
+    r2s = list()
+    mses = list()
+    timing = list()
 
-    #standardize test and train sep
-    scaler = StandardScaler()
-    scaler.fit(X_train)
-    X_train_std = scaler.transform(X_train)
-    X_test_std = scaler.transform(X_test)
+    while currTrial < TRIALS:
 
-    #do best subset selection
-    intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),15,standardize=True,seed=currTrial) #set seed and 15 as max k 
+        start = time.perf_counter()
+        
+        #get newdf with chosen columns using llm
+        if model == "LLMBSS":
+            newdf = NarrowDownDFLLM(df,"Spotify/contextSpotify.txt",15) #here is where you specify how many features the LLM should choose
+        else:
+            newdf = df
 
-    # Predict and evaluate (@ is matrix multiplication) #headers? array types?
-    y_pred = (X_test_std @ coefficients) +intercept
+        print("Number of columsn:" ,len(newdf.columns))
+        if len(newdf.columns) < 1:
+            print(f"{model} didn't give any features")
+            continue
 
-    print("R^2 Score:", r2_score(y_test, y_pred))
-    r2s.append(r2_score(y_test, y_pred))
-    print("MSE:", mean_squared_error(y_test, y_pred))
-    mses.append(mean_squared_error(y_test, y_pred))
-    print("RMSE:", np.sqrt(mean_squared_error(y_test, y_pred)))
+        #split data
+        X_train, X_test, y_train, y_test = train_test_split(newdf, y, test_size=0.2, random_state = currTrial)
 
-    currTrial += 1
+        #standardize test and train sep
+        scaler = StandardScaler()
+        scaler.fit(X_train)
+        X_train_std = scaler.transform(X_train)
+        X_test_std = scaler.transform(X_test)
 
-data = {
-    'r2': r2s,
-    'mse': mses
-}
+        #do best subset selection
+        intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),15,standardize=True,seed=currTrial) #set seed and 15 as max k 
 
-outputdf = pd.DataFrame(data)
-outputdf.to_csv('output.csv', index=True)
+        # Predict and evaluate (@ is matrix multiplication) #headers? array types?
+        y_pred = (X_test_std @ coefficients) +intercept
+
+        end = time.perf_counter()
+
+        print("R^2 Score:", r2_score(y_test, y_pred))
+        r2s.append(r2_score(y_test, y_pred))
+        print("MSE:", mean_squared_error(y_test, y_pred))
+        mses.append(mean_squared_error(y_test, y_pred))
+        print("RMSE:", np.sqrt(mean_squared_error(y_test, y_pred)))
+        timing.append(end -start)
+
+        currTrial += 1
+
+    data = {
+        'r2': r2s,
+        'mse': mses,
+        "time": timing
+    }
+
+    outputdf = pd.DataFrame(data)
+    outputdf.to_csv(f'output{model}.csv', index=True)
