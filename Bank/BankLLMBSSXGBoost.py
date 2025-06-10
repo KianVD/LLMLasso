@@ -168,7 +168,7 @@ client = OpenAI(
 )
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("bank-additional-full.csv",sep=";") 
+df = pd.read_csv("Bank/bank-additional-full.csv",sep=";") 
 #clean data 
 #take out quotes and commas from following
 
