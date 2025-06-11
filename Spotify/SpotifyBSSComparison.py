@@ -220,6 +220,7 @@ y = df["Spotify Streams"]
 df = df.drop(columns=["Spotify Streams"])
 
 TRIALS = 10
+FEATURES = 15
 
 for model in ["LLMBSS","BSS"]:
 
@@ -227,6 +228,7 @@ for model in ["LLMBSS","BSS"]:
     r2s = list()
     mses = list()
     timing = list()
+    featuresChosen = list()
 
     while currTrial < TRIALS:
 
@@ -234,7 +236,7 @@ for model in ["LLMBSS","BSS"]:
         
         #get newdf with chosen columns using llm
         if model == "LLMBSS":
-            newdf = NarrowDownDFLLM(df,"Spotify/contextSpotify.txt",15) #here is where you specify how many features the LLM should choose
+            newdf = NarrowDownDFLLM(df,"Spotify/contextSpotify.txt",FEATURES) #here is where you specify how many features the LLM should choose
         else:
             newdf = df
 
@@ -253,10 +255,13 @@ for model in ["LLMBSS","BSS"]:
         X_test_std = scaler.transform(X_test)
 
         #do best subset selection
-        intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),15,standardize=True,seed=currTrial) #set seed and 15 as max k 
+        intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),FEATURES,standardize=True,seed=currTrial) #set seed and 15 as max k 
 
         # Predict and evaluate (@ is matrix multiplication) #headers? array types?
         y_pred = (X_test_std @ coefficients) +intercept
+
+        #sum the amount of features actually used the final model
+        finalFeatureAmount = sum(1 for coef in coefficients if coef != 0)
 
         end = time.perf_counter()
 
@@ -266,13 +271,15 @@ for model in ["LLMBSS","BSS"]:
         mses.append(mean_squared_error(y_test, y_pred))
         print("RMSE:", np.sqrt(mean_squared_error(y_test, y_pred)))
         timing.append(end -start)
+        featuresChosen.append(finalFeatureAmount)
 
         currTrial += 1
 
     data = {
         'r2': r2s,
         'mse': mses,
-        "time": timing
+        "time": timing,
+        "features used":featuresChosen
     }
 
     outputdf = pd.DataFrame(data)
