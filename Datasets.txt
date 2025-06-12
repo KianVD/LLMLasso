@@ -9,3 +9,6 @@
 5) (C) Diabetes: https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database 
 6) (C) Bank: https://archive.ics.uci.edu/dataset/222/bank+marketing 
 7) (C) Glioma: https://archive.ics.uci.edu/dataset/759/glioma+grading+clinical+and+mutation+features+dataset 
+
+//trying to find large meaningful feature datasets
+8) (C) Ads: https://archive.ics.uci.edu/dataset/51/internet+advertisements
