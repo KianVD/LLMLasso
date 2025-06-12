@@ -31,14 +31,15 @@ def GetLLMFeatures(contextFilepath, featuresToGet, features):
         context = f.read()
     #get full response
     response = client.chat.completions.create(
-                model = "gpt-3.5-turbo",
+                model = "gpt-3.5-turbo", #gpt-3.5-turbo, gpt-4o
                 messages=[{"role":"developer","content": context + f"""Your Task:
-                            Please print only a list of exactly {n} features based on the above data in a csv format, seperating features with a comma then a space, 
+                            Please print only a list of exactly {n} of the available features based on the above data in a csv format, seperating features with a comma then a space, 
                            maintaining the exact feature names while not changing capitalization.
-                        For example, when given a list of features: feature1, FeaTure2, ftr3 : you would return a csv with the selected features, possibly including: feature1, FeaTure2, ftr3, etc. 
-                           Also, selecting these features from the following based on their relevance and likelyhood to predict the variable given by and using the context. 
-                           Let me stress again the importance of returning exactly {n} features without changing their names from the given input in any way, and returning this comma seperated table as specified."""},
-                        {"role":"user","content":" ".join(features)},
+                        For example, when given a list of features: feature1, FeaTure2, ftr3 : you would return a csv with the selected features, possibly including: feature1, FeaTure2, ftr3, etc. in that format.
+                           Also, select these features from the following based on their relevance and likelyhood to predict the variable given by and using the context. 
+                           Let me stress again the importance of returning exactly {n} features without changing their names from the given input in any way, and returning this comma seperated table as specified.
+                           The only available features to be picked are given by the user, following this message."""},
+                        {"role":"user","content":", ".join(features)},
                 ],
             )
     #get chosen features
@@ -224,16 +225,17 @@ df = df.drop(columns=["Spotify Streams"])
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [10] #list of features to try
+FEATURES = [10,15,20] #list of features to try [10,15,20]
 
-for model in ["LLMBSS","BSS"]:
+for model in ["LLMBSS"]: #["LLMBSS","BSS"]
     
     for feature in FEATURES:
         r2s = list()
         mses = list()
         timing = list()
-        featuresChosen = list()
         featuresSpecified = [feature] *TRIALS
+        featuresChosenLLM = list()
+        featuresChosen = list()
 
         currTrial = 0
 
@@ -247,10 +249,12 @@ for model in ["LLMBSS","BSS"]:
             else:
                 newdf = df
 
-            print("Number of columsn:" ,len(newdf.columns))
-            if len(newdf.columns) < 1:
+            llmFeatures = len(newdf.columns)
+            print("Number of columsn:" ,llmFeatures)
+            if llmFeatures < 1:
                 print(f"{model} didn't give any features")
                 continue
+            featuresChosenLLM.append(llmFeatures)
 
             #split data
             X_train, X_test, y_train, y_test = train_test_split(newdf, y, test_size=0.2, random_state = currTrial)
@@ -285,9 +289,11 @@ for model in ["LLMBSS","BSS"]:
         data = {
             'r2': r2s,
             'mse': mses,
-            "time": timing,
+            'rmse (Spotify Streams)': np.sqrt(mses),
+            "time (sec)": timing,
             "features specified": featuresSpecified,#make a TRIAL long list of the number 'feature'
-            "features used":featuresChosen
+            "features chosen by LLM": featuresChosenLLM,
+            "features used in BSS":featuresChosen
         }
 
         outputdf = pd.DataFrame(data)

@@ -1,10 +1,14 @@
 This dataset presents a comprehensive compilation of the most streamed songs on Spotify in 2024. It provides extensive insights into each track's attributes, popularity, and presence on various music platforms, offering a valuable resource for music analysts, enthusiasts, and industry professionals. The dataset includes information such as track name, artist, release date, ISRC, streaming statistics, and presence on platforms like YouTube, TikTok, and more.
 
-Track Name: Name of the song.
+Track: Name of the song.
 Album Name: Name of the album the song belongs to.
 Artist: Name of the artist(s) of the song.
-Release Date: Date when the song was released.
-ISRC: International Standard Recording Code for the song.
+Year: Year song was released.
+Month: Month song was released.
+Day: Day song was released.
+Weekday: Day of the week song was released
+Country Code: Country song was released from.
+Registrant Code: Registrant code of song releaser.
 All Time Rank: Ranking of the song based on its all-time popularity.
 Track Score: Score assigned to the track based on various factors.
 Spotify Playlist Count: Number of Spotify playlists the song is included in.
@@ -27,9 +31,5 @@ Pandora Track Stations: Number of Pandora stations featuring the song.
 Soundcloud Streams: Total number of streams on Soundcloud.
 Shazam Counts: Total number of times the song has been Shazamed.
 Explicit Track: Indicates whether the song contains explicit content.
-Potential Use Cases
-Music Analysis: Analyze trends in audio features to understand popular song characteristics.
-Platform Comparison: Compare song popularity across different music platforms.
-Artist Impact: Study the relationship between artist attributes and song success.
-Temporal Trends: Identify changes in music attributes and preferences over time.
-Cross-Platform Presence: Investigate song performance across various streaming services.
+
+You are trying to predict the number of spotify streams a track has.
