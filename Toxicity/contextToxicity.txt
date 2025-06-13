@@ -1,0 +1,22 @@
+
+Circadian rhythm is an important mechanism that controls behavior and biochemical events based on
+24 h rhythmicity. Ample evidence indicates disturbance of this mechanism is associated with diferent
+diseases such as cancer, mood disorders, and familial delayed phase sleep disorder. Therefore, drug
+discovery studies have been initiated using high throughput screening. Recently the crystal structures
+of core clock proteins (CLOCK/BMAL1, Cryptochromes (CRY), Periods), responsible for generating
+circadian rhythm, have been solved. Availability of structures makes amenable core clock proteins
+to design molecules regulating their activity by using in silico approaches. In addition to that, the
+implementation of classifcation features of molecules based on their toxicity and activity will improve
+the accuracy of the drug discovery process. Here, we identifed 171 molecules that target functional
+domains of a core clock protein, CRY1, using structure-based drug design methods. We experimentally
+determined that 115 molecules were nontoxic, and 21 molecules signifcantly lengthened the period
+of circadian rhythm in U2OS cells. We then performed a machine learning study to classify these
+molecules for identifying features that make them toxic and lengthen the circadian period. Decision
+tree classifers (DTC) identifed 13 molecular descriptors, which predict the toxicity of molecules
+with a mean accuracy of 79.53% using tenfold cross-validation. Gradient boosting classifers (XGBC)
+identifed 10 molecular descriptors that predict and increase in the circadian period length with a mean
+accuracy of 86.56% with tenfold cross-validation. Our results suggested that these features can be
+used in QSAR studies to design novel nontoxic molecules that exhibit period lengthening activity.
+
+
+The selected 13 molecular descriptors are: “MDEC-23, MATS2v, ATSC8s, VE3_Dt, CrippenMR, SpMax7_Bhe, SpMin1_Bhs, C1SP2, GATS8e, GATS8s, SpMax5_Bhv, VE3_Dzi, VPC-4.”
