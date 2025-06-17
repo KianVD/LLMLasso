@@ -1,0 +1,23 @@
+Metal-Organic Frameworks (MOF) are a class of crystalline materials connected by coordination bonds between metal ions (or metal clusters) and organic ligands. MOF materials have porous structure, highly tunable and huge specific surface area, which makes them have wide application potential in fields such as adsorption, gas storage, separation, catalysis and so on. Prediction synthesis refers to the prediction and design of synthetic routes and conditions of new MOF materials through computer simulation and machine learning methods.
+
+Structural information of MOF materials (input): MOF is determined by metal, organic ligand, connection mode (topology) and can be given as input data representing structural information by CIF (Crystallographic Information File) file through algorithm (we will provide). This dataset will provide two kinds of data, Fingerprint and RAC, respectively, according to which the players need to make corresponding task predictions.
+
+Synthesis conditions of MOF materials (output): According to the data mining of the corresponding articles on the synthesis of MOF materials, four representative synthetic conditions of materials are obtained: temperature (T), time (t), organic solvent used, and additives.
+
+The RAC feature data combines the pore geometry of the MOF with the chemical composition (such as metal nodes, ligands, and functional groups) to obtain the feature vector.
+
+The fields of sample characteristics are described as follows:
+
+Field	Description
+ASA [m^2/cm^3] – CH4HPSTP	Float and Int, RAC eigenvector of sample MOF
+temperature	Float, material synthesis temperature
+time	Float, material synthesis time
+solvent1 – solvent3	Int, organic solvent used in material synthesis
+additive	Int, additives used in the synthesis of materials
+param1 – param5	Float, organic solvent-related properties (normalized)
+additive_category	Int, additive category
+Among them, the five related properties of the solvent are: octanol/water partition coefficient, hydrogen bond donor number, hydrogen bond acceptor number, local charge maximum absolute value, boiling point.
+
+Based on RAC features, the following regression task is set:
+
+temperature Prediction task: Predicts the temperature field.
