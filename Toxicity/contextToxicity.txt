@@ -18,5 +18,4 @@ identifed 10 molecular descriptors that predict and increase in the circadian pe
 accuracy of 86.56% with tenfold cross-validation. Our results suggested that these features can be
 used in QSAR studies to design novel nontoxic molecules that exhibit period lengthening activity.
 
-
-The selected 13 molecular descriptors are: “MDEC-23, MATS2v, ATSC8s, VE3_Dt, CrippenMR, SpMax7_Bhe, SpMin1_Bhs, C1SP2, GATS8e, GATS8s, SpMax5_Bhv, VE3_Dzi, VPC-4.”
+TODO put more contesxt, but dont cheat and display results, just put infromation regarding the topic
