@@ -35,11 +35,10 @@ def GetLLMFeatures(contextFilepath, featuresToGet, features):
     response = client.chat.completions.create(
                 model = "gpt-3.5-turbo", #gpt-3.5-turbo, gpt-4o
                 messages=[{"role":"developer","content": context + f"""Your Task:
-                            Please print only a list of exactly {n} of the available features based on the above data in a csv format, seperating features with a comma then a space, 
-                           maintaining the exact feature names while not changing capitalization. They should be returned in order of importance, with the most important being returned first.
-                        For example, when given a list of features: feature1, FeaTure2, ftr3 : you would return a csv with the selected features, possibly including: feature1, FeaTure2, ftr3, etc. in that format.
-                           Also, select these features from the following based on their relevance and likelyhood to predict the variable given by and using the context. 
-                           Let me stress again the importance of returning exactly {n} features without changing their names from the given input in any way, and returning this comma seperated table as specified.
+                            Please print only a list of the available features in the order of their significance to predicting the desired variable, listing the most significant first, based on the above data. 
+                           This list should be in a csv format, seperating features with a comma then a space, maintaining the exact feature names including capitalization.
+                            For example, when given a list of features: FeaTure2, feature1, ftr3 : you would return the following: feature1, FeaTure2, ftr3, etc. in that format, ordered by significance.
+                           These features should be selected based on their relevance and likelyhood to predict the variable given by and using the context. 
                            The only available features to be picked are given by the user, following this message."""},
                         {"role":"user","content":", ".join(features)},
                 ],
@@ -47,7 +46,7 @@ def GetLLMFeatures(contextFilepath, featuresToGet, features):
     #get chosen features
     LLMfeatures = response.choices[0].message.content
 
-    print(LLMfeatures)
+    #print(LLMfeatures)
     finalFeatures = LLMfeatures.split(", ")
 
     return finalFeatures
