@@ -92,7 +92,7 @@ def miqp(features, response, non_zero, verbose=False):
 
         if not verbose:
             regressor.params.OutputFlag = 0
-        regressor.params.timelimit = 60
+        regressor.params.timelimit = 60 #60
         regressor.params.mipgap = 0.001
         regressor.optimize()
 
@@ -179,7 +179,7 @@ def TrainAppendResults(df,y,seed,featureAmount,results,model):
     X_test_std = scaler.transform(X_test)
 
     #do best subset selection
-    intercept, coefficients = miqp(X_train_std, y_train.to_numpy(), featureAmount)
+    intercept, coefficients = miqp(X_train_std, y_train.to_numpy(), min(featureAmount,X_train_std.shape[1]))#uses featureAmount for k, or col dim if smaller
     #or with cross validation
     #intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),featureAmount,standardize=True,seed=seed) #set seed and feature as max k 
 
@@ -205,7 +205,7 @@ def save_results(results,featuresSpecified,featureAmount,ModelName):
             'rmse (Spotify Streams)': np.sqrt(results[ModelName]["mse"]),
             "time (sec)": results[ModelName]['timing'],
             "features specified": featuresSpecified,
-            "features chosen through BSS":results[ModelName]["finalFeaturesChosen"]
+            "features used in BSS":results[ModelName]["finalFeaturesChosen"]
         }
     if ModelName in ["LLM","Rand"]:
         output["features matched to BSS"] = results[ModelName]["matched features"] #optimal features chosen (?)
@@ -279,7 +279,7 @@ df.drop("temperature",axis=1,inplace=True)
 
 
 TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [10] #list of features to try [10,15,20]
+FEATURES = [10,30] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
