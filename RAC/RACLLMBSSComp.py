@@ -206,7 +206,7 @@ def save_results(results,featuresSpecified,featureAmount,ModelName):
             "features specified": featuresSpecified,
             "features used in BSS":results[ModelName]["finalFeaturesChosen"]
         }
-    if ModelName in ["LLM","Rand"]:
+    if (ModelName in ["LLM","Rand"]) and ("matched features" in results[ModelName]):
         output["features matched to BSS"] = results[ModelName]["matched features"] #optimal features chosen (?)
     if ModelName == "LLM":
         output["features chosen by LLM"] = results[ModelName]["featuresChosenByLLM"] #extra column that tells how many features the llm returns (should be equal to features specified, but may not be if LLM didn't listen)
@@ -246,7 +246,10 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatur
     else:
         #find matched features with BSS
         if otherFeatureNames:
+            if "matched features" not in results[model]:
+                results[model]["matched features"] = list()
             results[model]["matched features"].append(match_features(currdf.columns,otherFeatureNames,featureAmount))
+                
 
 
 # Use the OpenAI client library to add your API key.
@@ -287,15 +290,15 @@ for featureAmount in FEATURES:
 
     results = {
         'BSS' : {"r2":[],"mse":[],"timing": [],"finalFeaturesChosen":[]},
-        'LLM' : {"r2":[],"mse":[],"timing": [],"finalFeaturesChosen":[],"matched features":[],"featuresChosenByLLM":[]},
-        'Rand' : {"r2":[],"mse":[],"timing": [],"finalFeaturesChosen":[],"matched features":[]}
+        'LLM' : {"r2":[],"mse":[],"timing": [],"finalFeaturesChosen":[],"featuresChosenByLLM":[]},
+        'Rand' : {"r2":[],"mse":[],"timing": [],"finalFeaturesChosen":[]}
     }
 
 
     currTrial = 0
     while currTrial < TRIALS:
         #///////[BSS]\\\\\\\
-        BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results)
+        BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results) #bss too slow
 
         #///////[LLM]\\\\\\\
         run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="RAC/contextRac.txt",otherFeatureNames=BSSChosenFeatureNames)
