@@ -179,9 +179,9 @@ def TrainAppendResults(df,y,seed,featureAmount,results,model):
     X_test_std = scaler.transform(X_test)
 
     #do best subset selection
-    intercept, coefficients = miqp(X_train_std, y_train.to_numpy(), min(featureAmount,X_train_std.shape[1]))#uses featureAmount for k, or col dim if smaller
+    #intercept, coefficients = miqp(X_train_std, y_train.to_numpy(), min(featureAmount,X_train_std.shape[1]))#uses featureAmount for k, or col dim if smaller
     #or with cross validation
-    #intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),featureAmount,standardize=True,seed=seed) #set seed and feature as max k 
+    intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),featureAmount,standardize=True,seed=seed) #set seed and feature as max k 
 
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
     y_pred = (X_test_std @ coefficients) +intercept
@@ -278,8 +278,8 @@ df.drop("temperature",axis=1,inplace=True)
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
-TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [10,30] #list of features to try [10,15,20]
+TRIALS = 1 #this number of trials for each unique combination of feature amount and model type
+FEATURES = [30] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
