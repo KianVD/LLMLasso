@@ -157,7 +157,6 @@ def L0_regression(features, response, maxfeatures,folds=5, standardize=False, se
         if val < best_mse:
             best_mse = val
             best = i
-    best = max_k
     if standardize:
         scaler = StandardScaler()
         scaler.fit(features)
