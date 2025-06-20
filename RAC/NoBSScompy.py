@@ -39,7 +39,7 @@ def GetLLMFeatures(contextFilepath, featuresToGet, features):
                            This list should be in a csv format, seperating features with a comma then a space, maintaining the exact feature names including capitalization.
                             For example, when given a list of features: FeaTure2, feature1, ftr3 : you would return the following: feature1, FeaTure2, ftr3, etc. in that format, ordered by significance.
                            These features should be selected based on their relevance and likelyhood to predict the variable given by and using the context.
-                           The only available features to be picked are given by the user, following this message."""},
+                           At least {n} of the available features should be returned. The only available features to be picked are given by the user, following this message."""},
                         {"role":"user","content":", ".join(features)},
                 ],
             )
@@ -268,6 +268,9 @@ df = df[~df["param2"].isna()]
 
 #drop mof cat column
 df.drop('mof', axis=1, inplace=True)
+df.drop('param3', axis=1, inplace=True)
+df.drop('param1', axis=1, inplace=True)
+
 
 #get numerilc cols
 numerical_cols = df.select_dtypes(include='number').columns.tolist()
@@ -281,7 +284,7 @@ df.drop("param2",axis=1,inplace=True)
 
 
 TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [10,30] #list of features to try [10,15,20]
+FEATURES = [40] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
