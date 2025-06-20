@@ -20,4 +20,4 @@ Among them, the five related properties of the solvent are: octanol/water partit
 
 Based on RAC features, the following regression task is set:
 
-temperature Prediction task: Predicts the temperature field.
+Prediction task: Predicts the param2 field.

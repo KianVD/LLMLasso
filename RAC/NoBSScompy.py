@@ -35,10 +35,10 @@ def GetLLMFeatures(contextFilepath, featuresToGet, features):
     response = client.chat.completions.create(
                 model = "gpt-3.5-turbo", #gpt-3.5-turbo, gpt-4o
                 messages=[{"role":"developer","content": context + f"""Your Task:
-                            Please print only a list of the available features in the order of their significance to predicting the desired variable, listing the most significant first, based on the above data. 
+                            Please print only a list of the available features in the order of their significance to predicting the desired variable, listing the most significant first, based on the above data.
                            This list should be in a csv format, seperating features with a comma then a space, maintaining the exact feature names including capitalization.
                             For example, when given a list of features: FeaTure2, feature1, ftr3 : you would return the following: feature1, FeaTure2, ftr3, etc. in that format, ordered by significance.
-                           These features should be selected based on their relevance and likelyhood to predict the variable given by and using the context. 
+                           These features should be selected based on their relevance and likelyhood to predict the variable given by and using the context.
                            The only available features to be picked are given by the user, following this message."""},
                         {"role":"user","content":", ".join(features)},
                 ],
@@ -76,7 +76,7 @@ def miqp(features, response, non_zero, verbose=False):
         assert non_zero <= dim
 
         # Append a column of ones to the feature matrix to account for the y-intercept
-        X = np.concatenate([features, np.ones((samples, 1))], axis=1)  
+        X = np.concatenate([features, np.ones((samples, 1))], axis=1)
 
         # Decision variables
         norm_0 = regressor.addVar(lb=non_zero, ub=non_zero, name="norm")
@@ -123,7 +123,7 @@ def cross_validate(features, response, non_zero, folds, standardize, seed):
     # Randomly assign each sample to a fold
     shuffled = np.random.choice(samples, samples, replace=False)
     mse_cv = 0
-    # Exclude folds from training, one at a time, 
+    # Exclude folds from training, one at a time,
     #to get out-of-sample estimates of the MSE
     for fold in range(folds):
         idx = shuffled[fold * fold_size : min((fold + 1) * fold_size, samples)]
@@ -178,9 +178,9 @@ def TrainAppendResults(df,y,seed,featureAmount,results,model):
     X_test_std = scaler.transform(X_test)
 
     #do best subset selection
-    intercept, coefficients = miqp(X_train_std, y_train.to_numpy(), min(featureAmount,X_train_std.shape[1]))#uses featureAmount for k, or col dim if smaller
+    #intercept, coefficients = miqp(X_train_std, y_train.to_numpy(), min(featureAmount,X_train_std.shape[1]))#uses featureAmount for k, or col dim if smaller
     #or with cross validation
-    #intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),featureAmount,standardize=True,seed=seed) #set seed and feature as max k 
+    intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),featureAmount,standardize=True,seed=seed) #set seed and feature as max k
 
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
     y_pred = (X_test_std @ coefficients) +intercept
@@ -220,9 +220,9 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatur
             #original df
             currdf = df
         case "LLM":
-            #get newdf with chosen columns using llm 
+            #get newdf with chosen columns using llm
             currdf = NarrowDownDFLLM(df,contextFile,featureAmount) #here is where you specify how many features the LLM should choose
-        
+
             #find number of features chosen by llm, make sure its not 0
             llmFeatureAmount = currdf.shape[1]
             print("Number of columsn:" ,llmFeatureAmount)
@@ -249,7 +249,7 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatur
             if "matched features" not in results[model]:
                 results[model]["matched features"] = list()
             results[model]["matched features"].append(match_features(currdf.columns,otherFeatureNames,featureAmount))
-                
+
 
 
 # Use the OpenAI client library to add your API key.
@@ -261,7 +261,7 @@ client = OpenAI(
 #--------------------------------------------------DATA CLEANING-------------------------------------------------------
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("RAC/RAC_train.csv") 
+df = pd.read_csv("RAC_train.csv")
 #drop rows where the target is na
 df = df[~df["param2"].isna()]
 
@@ -269,7 +269,7 @@ df = df[~df["param2"].isna()]
 #drop mof cat column
 df.drop('mof', axis=1, inplace=True)
 
-#get numerilc cols 
+#get numerilc cols
 numerical_cols = df.select_dtypes(include='number').columns.tolist()
 #fillna for numerical
 df[numerical_cols] = df[numerical_cols].fillna(df[numerical_cols].mean())
@@ -280,8 +280,8 @@ df.drop("param2",axis=1,inplace=True)
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
-TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [10,30] #list of features to try [10,15,20]
+TRIALS = 1 #this number of trials for each unique combination of feature amount and model type
+FEATURES = [10] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
@@ -298,16 +298,16 @@ for featureAmount in FEATURES:
     currTrial = 0
     while currTrial < TRIALS:
         #///////[BSS]\\\\\\\
-        BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results) #bss too slow
+        #BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results) #bss too slow
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="RAC/contextRac.txt",otherFeatureNames=BSSChosenFeatureNames)
+        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="contextRac.txt")
 
 
         #///////[Rand]\\\\\\\
-        run_trial("Rand",df,y,currTrial,featureAmount,results,otherFeatureNames=BSSChosenFeatureNames)
-        
+        run_trial("Rand",df,y,currTrial,featureAmount,results)
+
         currTrial += 1
 
-    for model in ["BSS","LLM","Rand"]:
+    for model in ["LLM","Rand"]:
         save_results(results,featuresSpecified,featureAmount,model)
