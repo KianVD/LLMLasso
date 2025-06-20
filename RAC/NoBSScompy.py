@@ -261,7 +261,7 @@ client = OpenAI(
 #--------------------------------------------------DATA CLEANING-------------------------------------------------------
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("RAC_train.csv")
+df = pd.read_csv("RAC/RAC_train.csv")
 #drop rows where the target is na
 df = df[~df["param2"].isna()]
 
@@ -280,8 +280,8 @@ df.drop("param2",axis=1,inplace=True)
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
-TRIALS = 1 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [10] #list of features to try [10,15,20]
+TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
+FEATURES = [10,30] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
@@ -301,7 +301,7 @@ for featureAmount in FEATURES:
         #BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results) #bss too slow
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="contextRac.txt")
+        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="RAC/contextRac.txt")
 
 
         #///////[Rand]\\\\\\\
