@@ -267,21 +267,20 @@ client = OpenAI(
 #--------------------------------------------------DATA CLEANING-------------------------------------------------------
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("RAC/RAC_train.csv") 
+df = pd.read_csv("Toxicity/ToxicityData.csv") 
 #drop rows where the target is na
-df = df[~df["temperature"].isna()]
-
-
-#drop mof cat column
-df.drop('mof', axis=1, inplace=True)
+df = df[~df["Class"].isna()]
 
 #get numerilc cols 
 numerical_cols = df.select_dtypes(include='number').columns.tolist()
 #fillna for numerical
 df[numerical_cols] = df[numerical_cols].fillna(df[numerical_cols].mean())
 #separate target and df
-y = df["temperature"]
-df.drop("temperature",axis=1,inplace=True)
+y = df["Class"]
+df.drop("Class",axis=1,inplace=True)
+
+#turn categorical y into binary 1 for toxic 0 for nontoxic
+y = pd.Series([1 if tox == "Toxic" else 0 for tox in y])
 
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
