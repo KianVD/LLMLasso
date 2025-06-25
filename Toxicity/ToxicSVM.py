@@ -15,6 +15,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error as mse
 import time
 import random
+from gurobipy import quicksum
+from sklearn.metrics import f1_score, roc_auc_score,accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
+import matplotlib.pyplot as plt 
 random.seed(0)
 
 
@@ -39,7 +44,7 @@ def GetLLMFeatures(contextFilepath, featuresToGet, features):
                            This list should be in a csv format, seperating features with a comma then a space, maintaining the exact feature names including capitalization.
                             For example, when given a list of features: FeaTure2, feature1, ftr3 : you would return the following: feature1, FeaTure2, ftr3, etc. in that format, ordered by significance.
                            These features should be selected based on their relevance and likelyhood to predict the variable given by and using the context. 
-                           The only available features to be picked are given by the user, following this message."""},
+                           At least {n} of the available features should be returned. The only available features to be picked are given by the user, following this message."""},
                         {"role":"user","content":", ".join(features)},
                 ],
             )
@@ -64,113 +69,62 @@ def NarrowDownDFLLM(df,contextFilePath, featuresToGet):
     valid_cols = valid_cols[:featuresToGet] #cut off any extra columns if llm included too many (they are ranked in order of importance so least important get cut off first )
     return df[valid_cols].copy()
 
-def miqp(features, response, non_zero, verbose=False):
-    """
-    Deploy and optimize the MIQP formulation of L0-Regression.
-    """
-    assert isinstance(non_zero, (int, np.integer))
+def gurobiSVM(features, response):
     # Create a Gurobi environment and a model object
-    with gp.Model("", env=env) as regressor:
+    with gp.Model("", env=env) as model:
         samples, dim = features.shape
         assert samples == response.shape[0]
-        assert non_zero <= dim
 
-        # Append a column of ones to the feature matrix to account for the y-intercept
-        X = np.concatenate([features, np.ones((samples, 1))], axis=1)  
+        df = pd.DataFrame(features)
+        df["Target"] = response
 
-        # Decision variables
-        norm_0 = regressor.addVar(lb=non_zero, ub=non_zero, name="norm")
-        beta = regressor.addMVar((dim + 1,), lb=-GRB.INFINITY, name="beta") # Weights
-        intercept = beta[dim] # Last decision variable captures the y-intercept
+        x = df[df['Target'] == 0].drop('Target', axis=1).values
+        y = df[df['Target'] == 1].drop('Target', axis=1).values
 
-        regressor.setObjective(beta.T @ X.T @ X @ beta
-                               - 2*response.T @ X @ beta
-                               + np.dot(response, response), GRB.MINIMIZE)
+        #coefficients
+        a = [model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name=f"a{i}") for i in range(features.shape[1])]
+        
+        # intercept
+        beta = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="beta")
 
-        # Budget constraint based on the L0-norm
-        regressor.addGenConstrNorm(norm_0, beta[:-1], which=0, name="budget")
 
-        for i in range(non_zero):
-            beta[i].Start = 1
+        #slack variables
+        u = []
+        N = len(x)
+        [u.append(model.addVar(name=("u%d" % i))) for i in range(N)]
+            
+        v = []
+        M = len(y)
+        [v.append(model.addVar(name=("v%d" % i))) for i in range(M)]
+        
+        gamma = 1
+        model.setObjective(quicksum(a[j]*a[j] for j in range(features.shape[1])) + gamma*(quicksum(u) + quicksum(v)))
 
-        print(beta)
+        # Add constraints
+        for i in range(N):
+            model.addConstr(
+                quicksum(a[j]*x[i][j] for j in range(features.shape[1])) - beta >= 1 - u[i],
+                name=f"x_constr_{i}"
+            )
 
-        if not verbose:
-            regressor.params.OutputFlag = 0
-        regressor.params.timelimit = 60 #60
-        regressor.params.mipgap = 0.001
-        regressor.optimize()
+        for i in range(M):
+            model.addConstr(
+                quicksum(a[j]*y[i][j] for j in range(features.shape[1])) - beta <= -(1 - v[i]),
+                name=f"y_constr_{i}"
+            )
 
-        print(beta)
+        model.setParam('OutputFlag', 1)
+        #t1 = time.time()
+        model.optimize()
+        #tfinal = time.time() - t1
+            
+        equation = {}
+        if model.Status == GRB.OPTIMAL:
+            equation['a'] = [a[j].X for j in range(features.shape[1])]
+            equation['beta'] = beta.X
 
-        coeff = np.array([beta[i].X for i in range(dim)])
+        return equation
 
-        return intercept.X, coeff
-
-# Define functions necessary to perform hyper-parameter tuning via cross-validation
-
-def split_folds(features, response, train_mask):
-    """
-    Assign folds to either train or test partitions based on train_mask.
-    """
-    xtrain = features[train_mask,:]
-    xtest = features[~train_mask,:]
-    ytrain = response[train_mask]
-    ytest = response[~train_mask]
-    return xtrain, xtest, ytrain, ytest
-
-def cross_validate(features, response, non_zero, folds, standardize, seed):
-    """
-    Train an L0-Regression for each fold and report the cross-validated MSE.
-    """
-    if seed is not None:
-        np.random.seed(seed)
-    samples, dim = features.shape
-    assert samples == response.shape[0]
-    fold_size = int(np.ceil(samples / folds))
-    # Randomly assign each sample to a fold
-    shuffled = np.random.choice(samples, samples, replace=False)
-    mse_cv = 0
-    # Exclude folds from training, one at a time, 
-    #to get out-of-sample estimates of the MSE
-    for fold in range(folds):
-        idx = shuffled[fold * fold_size : min((fold + 1) * fold_size, samples)]
-        train_mask = np.ones(samples, dtype=bool)
-        train_mask[idx] = False
-        xtrain, xtest, ytrain, ytest = split_folds(features, response, train_mask)
-        if standardize:
-            scaler = StandardScaler()
-            scaler.fit(xtrain)
-            xtrain = scaler.transform(xtrain)
-            xtest = scaler.transform(xtest)
-        intercept, beta = miqp(xtrain, ytrain, non_zero)
-        ypred = np.dot(xtest, beta) + intercept
-        mse_cv += mse(ytest, ypred) / folds
-    # Report the average out-of-sample MSE
-    return mse_cv
-
-def L0_regression(features, response, maxfeatures,folds=2, standardize=False, seed=None):
-    """
-    Select the best L0-Regression model by performing grid search on the budget.
-    """
-    dim = features.shape[1]
-    best_mse = np.inf
-    best = 0
-    #Find highest possible features
-    max_k = dim if maxfeatures >= dim else maxfeatures
-    # Grid search to find best number of features to consider
-    for i in range(1, max_k + 1):
-        val = cross_validate(features, response, i, folds=folds,
-                             standardize=standardize, seed=seed)
-        if val < best_mse:
-            best_mse = val
-            best = i
-    if standardize:
-        scaler = StandardScaler()
-        scaler.fit(features)
-        features = scaler.transform(features)
-    intercept, beta = miqp(features, response, best)
-    return intercept, beta
 
 def TrainAppendResults(df,y,seed,featureAmount,results,model):
     #split, standardize, train bss, and predict on specified df and seed, and append data to specified lists
@@ -186,18 +140,27 @@ def TrainAppendResults(df,y,seed,featureAmount,results,model):
     X_test_std = scaler.transform(X_test)
 
     #or with cross validation
-    intercept, coefficients = L0_regression(X_train_std,y_train.to_numpy(),featureAmount,standardize=True,seed=seed) #set seed and feature as max k 
-
+    equation = gurobiSVM(X_train_std, y_train.to_numpy())#uses featureAmount for k, or col dim if smaller
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
-    y_pred = (X_test_std @ coefficients) +intercept
+    # Decision values
+    decision_scores = X_test_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
+
+    # switch 1 and 0
+    y_pred = (decision_scores < 0).astype(int)
 
     end = time.perf_counter()
+    results[model]["acc"].append(accuracy_score(y_test, y_pred))
+    results[model]["roc"].append(roc_auc_score(y_test, y_pred))
+    results[model]["f1"].append(f1_score(y_test, y_pred))
 
-    results[model]["r2"].append(r2_score(y_test, y_pred))
-    results[model]["mse"].append(mean_squared_error(y_test, y_pred))
+    # cm = confusion_matrix(y_test, y_pred)
+    # disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Toxic', 'NonToxic'])
+    # disp.plot()
+    # plt.show()
+
     results[model]["timing"].append(end -start)
-    results[model]["finalFeaturesChosen"].append(sum(1 for coef in coefficients if coef != 0))#sum the amount of features actually used the final model
-    return coefficients
+    results[model]["finalFeaturesChosen"].append(sum(1 for coef in equation["a"] if coef != 0))#sum the amount of features actually used the final model
+    return equation["a"]
 
 def match_features(givenFeatures,otherFeatures,featureAmount):
     totalMatched = sum(1 for feature in givenFeatures if feature in otherFeatures)
@@ -205,9 +168,9 @@ def match_features(givenFeatures,otherFeatures,featureAmount):
 
 def save_results(results,featuresSpecified,featureAmount,ModelName):
     output = {
-            'r2': results[ModelName]['r2'],
-            'mse': results[ModelName]['mse'],
-            'rmse (Spotify Streams)': np.sqrt(results[ModelName]["mse"]),
+            'acc': results[ModelName]['acc'],
+            'roc': results[ModelName]['roc'],
+            'f1': results[ModelName]["f1"],
             "time (sec)": results[ModelName]['timing'],
             "features specified": featuresSpecified,
             "features used in BSS":results[ModelName]["finalFeaturesChosen"]
@@ -285,8 +248,8 @@ y = pd.Series([1 if tox == "Toxic" else 0 for tox in y])
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
-TRIALS = 1 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [10] #list of features to try [10,15,20]
+TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
+FEATURES = [10,30,60] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
@@ -294,19 +257,19 @@ for featureAmount in FEATURES:
     featuresSpecified = [featureAmount] *TRIALS #make a TRIAL long list of the number 'feature'
 
     results = {
-        'BSS' : {"r2":[],"mse":[],"timing": [],"finalFeaturesChosen":[]},
-        'LLM' : {"r2":[],"mse":[],"timing": [],"finalFeaturesChosen":[],"featuresChosenByLLM":[]},
-        'Rand' : {"r2":[],"mse":[],"timing": [],"finalFeaturesChosen":[]}
+        'BSS' : {"acc":[],"roc":[],"f1":[],"timing": [],"finalFeaturesChosen":[]},
+        'LLM' : {"acc":[],"roc":[],"f1":[],"timing": [],"finalFeaturesChosen":[],"featuresChosenByLLM":[]},
+        'Rand' : {"acc":[],"roc":[],"f1":[],"timing": [],"finalFeaturesChosen":[]}
     }
 
 
     currTrial = 0
     while currTrial < TRIALS:
         #///////[BSS]\\\\\\\
-        BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results) #bss too slow
+        BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results) 
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="RAC/contextRac.txt",otherFeatureNames=BSSChosenFeatureNames)
+        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=BSSChosenFeatureNames)
 
 
         #///////[Rand]\\\\\\\
