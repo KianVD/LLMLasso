@@ -75,12 +75,6 @@ def gurobiSVM(features, response):
         samples, dim = features.shape
         assert samples == response.shape[0]
 
-        df = pd.DataFrame(features)
-        df["Target"] = response
-
-        x = df[df['Target'] == 0].drop('Target', axis=1).values
-        y = df[df['Target'] == 1].drop('Target', axis=1).values
-
         #coefficients
         a = [model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name=f"a{i}") for i in range(features.shape[1])]
         
@@ -89,29 +83,21 @@ def gurobiSVM(features, response):
 
 
         #slack variables
-        u = []
-        N = len(x)
-        [u.append(model.addVar(name=("u%d" % i))) for i in range(N)]
-            
-        v = []
-        M = len(y)
-        [v.append(model.addVar(name=("v%d" % i))) for i in range(M)]
+        slack = [model.addVar(name=f"xi{i}") for i in range(samples)]
         
-        gamma = 1
-        model.setObjective(quicksum(a[j]*a[j] for j in range(features.shape[1])) + gamma*(quicksum(u) + quicksum(v)))
-
-        # Add constraints
-        for i in range(N):
+        
+        #constraints
+        for i in range(samples):
             model.addConstr(
-                quicksum(a[j]*x[i][j] for j in range(features.shape[1])) - beta >= 1 - u[i],
-                name=f"x_constr_{i}"
+                response[i] * (quicksum(a[j]*features[i][j] for j in range(dim)) - beta) >= 1 - slack[i],
+                name=f"margin_{i}"
             )
 
-        for i in range(M):
-            model.addConstr(
-                quicksum(a[j]*y[i][j] for j in range(features.shape[1])) - beta <= -(1 - v[i]),
-                name=f"y_constr_{i}"
-            )
+        gamma = 1 #cv this
+        model.setObjective(
+            quicksum(a[j]*a[j] for j in range(dim)) + gamma * quicksum(slack),
+            GRB.MINIMIZE
+        )
 
         model.setParam('OutputFlag', 1)
         #t1 = time.time()
@@ -145,18 +131,19 @@ def TrainAppendResults(df,y,seed,featureAmount,results,model):
     # Decision values
     decision_scores = X_test_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
 
-    # switch 1 and 0
-    y_pred = (decision_scores < 0).astype(int)
+    #convert to bipolar
+    y_pred = (decision_scores > 0).astype(int)
+    y_pred = np.where(y_pred == 0, -1, 1)
 
     end = time.perf_counter()
     results[model]["acc"].append(accuracy_score(y_test, y_pred))
     results[model]["roc"].append(roc_auc_score(y_test, y_pred))
     results[model]["f1"].append(f1_score(y_test, y_pred))
 
-    # cm = confusion_matrix(y_test, y_pred)
-    # disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Toxic', 'NonToxic'])
-    # disp.plot()
-    # plt.show()
+    cm = confusion_matrix(y_test, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['NonToxic','Toxic'])
+    disp.plot()
+    plt.show()
 
     results[model]["timing"].append(end -start)
     results[model]["finalFeaturesChosen"].append(sum(1 for coef in equation["a"] if coef != 0))#sum the amount of features actually used the final model
@@ -243,13 +230,13 @@ y = df["Class"]
 df.drop("Class",axis=1,inplace=True)
 
 #turn categorical y into binary 1 for toxic 0 for nontoxic
-y = pd.Series([1 if tox == "Toxic" else 0 for tox in y])
+y = pd.Series([1 if tox == "Toxic" else -1 for tox in y])
 
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
 TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [10,30,60] #list of features to try [10,15,20]
+FEATURES = [9] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
@@ -266,14 +253,14 @@ for featureAmount in FEATURES:
     currTrial = 0
     while currTrial < TRIALS:
         #///////[BSS]\\\\\\\
-        BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results) 
+        BSSChosenFeatureNames = run_trial("BSS",df,y,3,featureAmount,results) 
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=BSSChosenFeatureNames)
+        run_trial("LLM",df,y,3,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=BSSChosenFeatureNames)
 
 
         #///////[Rand]\\\\\\\
-        run_trial("Rand",df,y,currTrial,featureAmount,results,otherFeatureNames=BSSChosenFeatureNames)
+        run_trial("Rand",df,y,3,featureAmount,results,otherFeatureNames=BSSChosenFeatureNames)
         
         currTrial += 1
 
