@@ -253,14 +253,14 @@ for featureAmount in FEATURES:
     currTrial = 0
     while currTrial < TRIALS:
         #///////[BSS]\\\\\\\
-        BSSChosenFeatureNames = run_trial("BSS",df,y,3,featureAmount,results) 
+        BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results) 
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,3,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=BSSChosenFeatureNames)
+        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=BSSChosenFeatureNames)
 
 
         #///////[Rand]\\\\\\\
-        run_trial("Rand",df,y,3,featureAmount,results,otherFeatureNames=BSSChosenFeatureNames)
+        run_trial("Rand",df,y,currTrial,featureAmount,results,otherFeatureNames=BSSChosenFeatureNames)
         
         currTrial += 1
 
