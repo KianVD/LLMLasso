@@ -13,3 +13,5 @@
 //trying to find large meaningful feature datasets
 8) (C) Ads: https://archive.ics.uci.edu/dataset/51/internet+advertisements
 9) (C) Toxicity: https://archive.ics.uci.edu/dataset/728/toxicity-2 (This one looks promising ...)
+
+10) (R) MOF (RAC): https://www.kaggle.com/datasets/marquis03/metal-organic-frame-materials-prediction?select=mof_round1_train_v2_230725

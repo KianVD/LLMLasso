@@ -6,13 +6,11 @@ import numpy as np
 from dotenv import load_dotenv
 import os
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import LabelEncoder
 le = LabelEncoder()
 import gurobipy as gp
 from gurobipy import GRB
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error as mse
 import time
 import random
 from gurobipy import quicksum
@@ -99,10 +97,8 @@ def gurobiSVM(features, response):
             GRB.MINIMIZE
         )
 
-        model.setParam('OutputFlag', 1)
-        #t1 = time.time()
+        model.setParam('OutputFlag', 0)
         model.optimize()
-        #tfinal = time.time() - t1
             
         equation = {}
         if model.Status == GRB.OPTIMAL:
@@ -112,7 +108,7 @@ def gurobiSVM(features, response):
         return equation
 
 
-def TrainAppendResults(df,y,seed,featureAmount,results,model):
+def TrainAppendResults(df,y,seed,results,model):
     #split, standardize, train bss, and predict on specified df and seed, and append data to specified lists
 
     #split data, bss first
@@ -140,18 +136,12 @@ def TrainAppendResults(df,y,seed,featureAmount,results,model):
     results[model]["roc"].append(roc_auc_score(y_test, y_pred))
     results[model]["f1"].append(f1_score(y_test, y_pred))
 
-    cm = confusion_matrix(y_test, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['NonToxic','Toxic'])
-    disp.plot()
-    plt.show()
+    # cm = confusion_matrix(y_test, y_pred)
+    # disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['NonToxic','Toxic'])
+    # disp.plot()
+    # plt.show()
 
     results[model]["timing"].append(end -start)
-    results[model]["finalFeaturesChosen"].append(sum(1 for coef in equation["a"] if coef != 0))#sum the amount of features actually used the final model
-    return equation["a"]
-
-def match_features(givenFeatures,otherFeatures,featureAmount):
-    totalMatched = sum(1 for feature in givenFeatures if feature in otherFeatures)
-    return totalMatched/featureAmount
 
 def save_results(results,featuresSpecified,featureAmount,ModelName):
     output = {
@@ -159,20 +149,17 @@ def save_results(results,featuresSpecified,featureAmount,ModelName):
             'roc': results[ModelName]['roc'],
             'f1': results[ModelName]["f1"],
             "time (sec)": results[ModelName]['timing'],
-            "features specified": featuresSpecified,
-            "features used in BSS":results[ModelName]["finalFeaturesChosen"]
+            "features specified": featuresSpecified
         }
-    if (ModelName in ["LLM","Rand"]) and ("matched features" in results[ModelName]):
-        output["features matched to BSS"] = results[ModelName]["matched features"] #optimal features chosen (?)
     if ModelName == "LLM":
         output["features chosen by LLM"] = results[ModelName]["featuresChosenByLLM"] #extra column that tells how many features the llm returns (should be equal to features specified, but may not be if LLM didn't listen)
 
     pd.DataFrame(output).to_csv(f'output{ModelName}p{featureAmount}.csv', index=True)
 
-def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatureNames=None):
+def run_trial(model,df,y,seed,featureAmount,results,contextFile=None):
     #1 get df for specific model
     match model:
-        case "BSS":
+        case "SVM":
             #original df
             currdf = df
         case "LLM":
@@ -190,21 +177,7 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatur
 
     #2 trainappend results
 
-    Coef = TrainAppendResults(currdf,y,seed,featureAmount,results,model)
-
-    #3 return
-    if model == "BSS":
-        BSSChosenFeatureNames = list()
-        for i in range(len(currdf.columns)):
-            if Coef[i] != 0:
-                BSSChosenFeatureNames.append(currdf.columns[i])
-        return BSSChosenFeatureNames
-    else:
-        #find matched features with BSS
-        if otherFeatureNames:
-            if "matched features" not in results[model]:
-                results[model]["matched features"] = list()
-            results[model]["matched features"].append(match_features(currdf.columns,otherFeatureNames,featureAmount))
+    TrainAppendResults(currdf,y,seed,results,model)
                 
 
 
@@ -236,7 +209,7 @@ y = pd.Series([1 if tox == "Toxic" else -1 for tox in y])
 
 
 TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [9] #list of features to try [10,15,20]
+FEATURES = [10,30,60] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
@@ -244,25 +217,25 @@ for featureAmount in FEATURES:
     featuresSpecified = [featureAmount] *TRIALS #make a TRIAL long list of the number 'feature'
 
     results = {
-        'BSS' : {"acc":[],"roc":[],"f1":[],"timing": [],"finalFeaturesChosen":[]},
-        'LLM' : {"acc":[],"roc":[],"f1":[],"timing": [],"finalFeaturesChosen":[],"featuresChosenByLLM":[]},
-        'Rand' : {"acc":[],"roc":[],"f1":[],"timing": [],"finalFeaturesChosen":[]}
+        'SVM' : {"acc":[],"roc":[],"f1":[],"timing": []},
+        'LLM' : {"acc":[],"roc":[],"f1":[],"timing": [],"featuresChosenByLLM":[]},
+        'Rand' : {"acc":[],"roc":[],"f1":[],"timing": []}
     }
 
 
     currTrial = 0
     while currTrial < TRIALS:
         #///////[BSS]\\\\\\\
-        BSSChosenFeatureNames = run_trial("BSS",df,y,currTrial,featureAmount,results) 
+        run_trial("SVM",df,y,currTrial,featureAmount,results) 
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=BSSChosenFeatureNames)
+        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt")
 
 
         #///////[Rand]\\\\\\\
-        run_trial("Rand",df,y,currTrial,featureAmount,results,otherFeatureNames=BSSChosenFeatureNames)
+        run_trial("Rand",df,y,currTrial,featureAmount,results)
         
         currTrial += 1
 
-    for model in ["BSS","LLM","Rand"]:
+    for model in ["SVM","LLM","Rand"]:
         save_results(results,featuresSpecified,featureAmount,model)
