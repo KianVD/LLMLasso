@@ -17,5 +17,3 @@ with a mean accuracy of 79.53% using tenfold cross-validation. Gradient boosting
 identifed 10 molecular descriptors that predict and increase in the circadian period length with a mean
 accuracy of 86.56% with tenfold cross-validation. Our results suggested that these features can be
 used in QSAR studies to design novel nontoxic molecules that exhibit period lengthening activity.
-
-TODO put more contesxt, but dont cheat and display results, just put infromation regarding the topic
