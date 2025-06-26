@@ -128,7 +128,7 @@ def TrainAppendResults(df,y,seed,results,model):
     decision_scores = X_test_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
 
     #convert to bipolar
-    y_pred = (decision_scores > 0).astype(int)
+    y_pred = (decision_scores < 0).astype(int)
     y_pred = np.where(y_pred == 0, -1, 1)
 
     end = time.perf_counter()
@@ -148,12 +148,12 @@ def save_results(results,featuresSpecified,featureAmount,ModelName):
             'acc': results[ModelName]['acc'],
             'roc': results[ModelName]['roc'],
             'f1': results[ModelName]["f1"],
-            "time (sec)": results[ModelName]['timing'],
-            "features specified": featuresSpecified
+            "time (sec)": results[ModelName]['timing']
         }
     if ModelName == "LLM":
         output["features chosen by LLM"] = results[ModelName]["featuresChosenByLLM"] #extra column that tells how many features the llm returns (should be equal to features specified, but may not be if LLM didn't listen)
-
+    if ModelName != "SVM":
+        output["features specified"] = featuresSpecified
     pd.DataFrame(output).to_csv(f'output{ModelName}p{featureAmount}.csv', index=True)
 
 def run_trial(model,df,y,seed,featureAmount,results,contextFile=None):
@@ -208,8 +208,8 @@ y = pd.Series([1 if tox == "Toxic" else -1 for tox in y])
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
-TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [10,30,60] #list of features to try [10,15,20]
+TRIALS = 1 #this number of trials for each unique combination of feature amount and model type
+FEATURES = [10] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
@@ -225,7 +225,6 @@ for featureAmount in FEATURES:
 
     currTrial = 0
     while currTrial < TRIALS:
-        #///////[BSS]\\\\\\\
         run_trial("SVM",df,y,currTrial,featureAmount,results) 
 
         #///////[LLM]\\\\\\\
