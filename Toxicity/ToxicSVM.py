@@ -113,7 +113,7 @@ def TrainAppendResults(df,y,seed,results,model):
 
     #split data, bss first
     start = time.perf_counter()
-    X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, random_state = seed)
+    X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, stratify=y,random_state = seed)
 
     #standardize test and train sep
     scaler = StandardScaler()
@@ -125,23 +125,22 @@ def TrainAppendResults(df,y,seed,results,model):
     equation = gurobiSVM(X_train_std, y_train.to_numpy())#uses featureAmount for k, or col dim if smaller
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
     # Decision values
-    decision_scores = X_train_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
+    decision_scores = X_test_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
 
     #convert to bipolar
     y_pred = (decision_scores > 0).astype(int)
     y_pred = np.where(y_pred == 0, -1, 1)
 
-    end = time.perf_counter()
-    results[model]["acc"].append(accuracy_score(y_train, y_pred))
-    results[model]["roc"].append(roc_auc_score(y_train, y_pred))
-    results[model]["f1"].append(f1_score(y_train, y_pred))
+    results[model]["acc"].append(accuracy_score(y_test, y_pred))
+    results[model]["roc"].append(roc_auc_score(y_test, y_pred))
+    results[model]["f1"].append(f1_score(y_test, y_pred))
 
-    cm = confusion_matrix(y_train, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['NonToxic','Toxic'])
-    disp.plot()
-    plt.show()
+    # cm = confusion_matrix(y_test, y_pred)
+    # disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['NonToxic','Toxic'])
+    # disp.plot()
+    # plt.show()
 
-    results[model]["timing"].append(end -start)
+    
 
 def save_results(results,featuresSpecified,featureAmount,ModelName):
     output = {
@@ -158,6 +157,7 @@ def save_results(results,featuresSpecified,featureAmount,ModelName):
 
 def run_trial(model,df,y,seed,featureAmount,results,contextFile=None):
     #1 get df for specific model
+    start = time.perf_counter()
     match model:
         case "SVM":
             #original df
@@ -178,6 +178,9 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None):
     #2 trainappend results
 
     TrainAppendResults(currdf,y,seed,results,model)
+    #record time of whole trial
+    end = time.perf_counter()
+    results[model]["timing"].append(end -start)
                 
 
 
@@ -209,7 +212,7 @@ y = pd.Series([1 if tox == "Toxic" else -1 for tox in y])
 
 
 TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [60] #list of features to try [10,15,20]
+FEATURES = [100] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
