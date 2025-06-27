@@ -67,7 +67,7 @@ def NarrowDownDFLLM(df,contextFilePath, featuresToGet):
     valid_cols = valid_cols[:featuresToGet] #cut off any extra columns if llm included too many (they are ranked in order of importance so least important get cut off first )
     return df[valid_cols].copy()
 
-def gurobiSVM(features, response):
+def gurobiSVM(features, response,gamma=1.0):
     # Create a Gurobi environment and a model object
     with gp.Model("", env=env) as model:
         samples, dim = features.shape
@@ -91,7 +91,6 @@ def gurobiSVM(features, response):
                 name=f"margin_{i}"
             )
 
-        gamma = 1 #cv this
         model.setObjective(
             quicksum(a[j]*a[j] for j in range(dim)) + gamma * quicksum(slack),
             GRB.MINIMIZE
@@ -112,7 +111,6 @@ def TrainAppendResults(df,y,seed,results,model):
     #split, standardize, train bss, and predict on specified df and seed, and append data to specified lists
 
     #split data, bss first
-    start = time.perf_counter()
     X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, stratify=y,random_state = seed)
 
     #standardize test and train sep
@@ -122,7 +120,7 @@ def TrainAppendResults(df,y,seed,results,model):
     X_test_std = scaler.transform(X_test)
 
     #or with cross validation
-    equation = gurobiSVM(X_train_std, y_train.to_numpy())#uses featureAmount for k, or col dim if smaller
+    equation = gurobiSVM(X_train_std, y_train.to_numpy(),1)#uses featureAmount for k, or col dim if smaller
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
     # Decision values
     decision_scores = X_test_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
