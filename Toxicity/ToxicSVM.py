@@ -67,14 +67,14 @@ def NarrowDownDFLLM(df,contextFilePath, featuresToGet):
     valid_cols = valid_cols[:featuresToGet] #cut off any extra columns if llm included too many (they are ranked in order of importance so least important get cut off first )
     return df[valid_cols].copy()
 
-def gurobiSVM(features, response,gamma=1.0):
+def gurobiSVM(X, y,gamma=1.0,M=1000):
     # Create a Gurobi environment and a model object
     with gp.Model("", env=env) as model:
-        samples, dim = features.shape
-        assert samples == response.shape[0]
+        samples, features = X.shape
+        assert samples == y.shape[0]
 
         #coefficients
-        a = [model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name=f"a{i}") for i in range(features.shape[1])]
+        a = [model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name=f"a{i}") for i in range(features)]
         
         # intercept
         beta = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="beta")
@@ -82,28 +82,43 @@ def gurobiSVM(features, response,gamma=1.0):
 
         #slack variables
         slack = [model.addVar(name=f"xi{i}") for i in range(samples)]
+
+        #l0 norm selectors
+        z = model.addVars(features, vtype=GRB.BINARY, name="z")
         
+        # Link w and z constraints
+        for j in range(features):
+            model.addConstr(a[j] <= M * z[j])
+            model.addConstr(a[j] >= -M * z[j])
         
         #constraints
         for i in range(samples):
             model.addConstr(
-                response[i] * (quicksum(a[j]*features[i][j] for j in range(dim)) - beta) >= 1 - slack[i],
+                y[i] * (quicksum(a[j]*X[i][j] for j in range(features)) - beta) >= 1 - slack[i],
                 name=f"margin_{i}"
             )
 
         model.setObjective(
-            quicksum(a[j]*a[j] for j in range(dim)) + gamma * quicksum(slack),
+            quicksum(z[j] for j in range(features)) + gamma * quicksum(slack),
             GRB.MINIMIZE
         )
 
         model.setParam('OutputFlag', 0)
+        model.params.timelimit = 60
+        model.params.mipgap = 0.001
+
         model.optimize()
+        #print(model.Status)
             
         equation = {}
         if model.Status == GRB.OPTIMAL:
-            equation['a'] = [a[j].X for j in range(features.shape[1])]
+            equation['a'] = [a[j].X for j in range(features)]
             equation['beta'] = beta.X
-
+        else:
+            #didnt converge, return other apporximatination
+            print("Optimization did not converge")
+            equation['a'] = [1 for j in range(features)]
+            equation['beta'] = 1
         return equation
 
 
@@ -120,7 +135,7 @@ def TrainAppendResults(df,y,seed,results,model):
     X_test_std = scaler.transform(X_test)
 
     #or with cross validation
-    equation = gurobiSVM(X_train_std, y_train.to_numpy(),1)#uses featureAmount for k, or col dim if smaller
+    equation = gurobiSVM(X_train_std, y_train.to_numpy(),gamma=1,M=1000)#uses featureAmount for k, or col dim if smaller
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
     # Decision values
     decision_scores = X_test_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
@@ -138,9 +153,20 @@ def TrainAppendResults(df,y,seed,results,model):
     # disp.plot()
     # plt.show()
 
+    #add training results
+    decision_scores = X_train_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
+
+    #convert to bipolar
+    y_pred = (decision_scores > 0).astype(int)
+    y_pred = np.where(y_pred == 0, -1, 1)
+
+    results[f"{model}train"]["acc"].append(accuracy_score(y_train, y_pred))
+    results[f"{model}train"]["roc"].append(roc_auc_score(y_train, y_pred))
+    results[f"{model}train"]["f1"].append(f1_score(y_train, y_pred))
+
     
 
-def save_results(results,featuresSpecified,featureAmount,ModelName):
+def save_results(results,featuresSpecified,ModelName):
     output = {
             'acc': results[ModelName]['acc'],
             'roc': results[ModelName]['roc'],
@@ -151,7 +177,7 @@ def save_results(results,featuresSpecified,featureAmount,ModelName):
         output["features chosen by LLM"] = results[ModelName]["featuresChosenByLLM"] #extra column that tells how many features the llm returns (should be equal to features specified, but may not be if LLM didn't listen)
     if ModelName != "SVM":
         output["features specified"] = featuresSpecified
-    pd.DataFrame(output).to_csv(f'output{ModelName}p{featureAmount}.csv', index=True)
+    pd.DataFrame(output).to_csv(f'output{ModelName}p{featuresSpecified[0]}.csv', index=True)
 
 def run_trial(model,df,y,seed,featureAmount,results,contextFile=None):
     #1 get df for specific model
@@ -179,6 +205,7 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None):
     #record time of whole trial
     end = time.perf_counter()
     results[model]["timing"].append(end -start)
+    results[f"{model}train"]["timing"].append(end -start)
                 
 
 
@@ -220,7 +247,10 @@ for featureAmount in FEATURES:
     results = {
         'SVM' : {"acc":[],"roc":[],"f1":[],"timing": []},
         'LLM' : {"acc":[],"roc":[],"f1":[],"timing": [],"featuresChosenByLLM":[]},
-        'Rand' : {"acc":[],"roc":[],"f1":[],"timing": []}
+        'Rand' : {"acc":[],"roc":[],"f1":[],"timing": []},
+        'SVMtrain' : {"acc":[],"roc":[],"f1":[],"timing": []},
+        'LLMtrain' : {"acc":[],"roc":[],"f1":[],"timing": [],"featuresChosenByLLM":[]},
+        'Randtrain' : {"acc":[],"roc":[],"f1":[],"timing": []}
     }
 
 
@@ -237,5 +267,9 @@ for featureAmount in FEATURES:
         
         currTrial += 1
 
-    for model in ["SVM","LLM","Rand"]:
-        save_results(results,featuresSpecified,featureAmount,model)
+    for model in ["LLM","Rand"]:
+        save_results(results,featuresSpecified,model)
+        save_results(results,featuresSpecified,f"{model}train")
+    fullFeaturesSpecified = [df.shape[0]] *TRIALS
+    save_results(results,fullFeaturesSpecified,"SVM")
+    save_results(results,fullFeaturesSpecified,"SVMtrain")
