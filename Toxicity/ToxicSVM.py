@@ -67,7 +67,7 @@ def NarrowDownDFLLM(df,contextFilePath, featuresToGet):
     valid_cols = valid_cols[:featuresToGet] #cut off any extra columns if llm included too many (they are ranked in order of importance so least important get cut off first )
     return df[valid_cols].copy()
 
-def gurobiSVM(X, y,gamma=1.0,M=1000):
+def gurobiSVM(X, y,k,gamma=1.0,M=1000):
     # Create a Gurobi environment and a model object
     with gp.Model("", env=env) as model:
         samples, features = X.shape
@@ -81,7 +81,7 @@ def gurobiSVM(X, y,gamma=1.0,M=1000):
 
 
         #slack variables
-        slack = [model.addVar(name=f"xi{i}") for i in range(samples)]
+        slack = [model.addVar(lb=0,name=f"xi{i}") for i in range(samples)]
 
         #l0 norm selectors
         z = model.addVars(features, vtype=GRB.BINARY, name="z")
@@ -97,6 +97,8 @@ def gurobiSVM(X, y,gamma=1.0,M=1000):
                 y[i] * (quicksum(a[j]*X[i][j] for j in range(features)) - beta) >= 1 - slack[i],
                 name=f"margin_{i}"
             )
+        #costrain max k
+        model.addConstr(quicksum(z[j] for j in range(features)) <= k, name="feature_budget")
 
         model.setObjective(
             quicksum(z[j] for j in range(features)) + gamma * quicksum(slack),
@@ -111,38 +113,108 @@ def gurobiSVM(X, y,gamma=1.0,M=1000):
         #print(model.Status)
             
         equation = {}
-        if model.Status == GRB.OPTIMAL:
+        if model.Status [GRB.OPTIMAL, GRB.SUBOPTIMAL] and model.SolCount > 0:
             equation['a'] = [a[j].X for j in range(features)]
             equation['beta'] = beta.X
         else:
             #didnt converge, return other apporximatination
             print("Optimization did not converge")
-            equation['a'] = [1 for j in range(features)]
+            equation['a'] = [1 for _ in range(features)]
             equation['beta'] = 1
         return equation
 
+def split_folds(features, response, train_mask):
+    """
+    Assign folds to either train or test partitions based on train_mask.
+    """
+    xtrain = features[train_mask,:]
+    xtest = features[~train_mask,:]
+    ytrain = response[train_mask]
+    ytest = response[~train_mask]
+    return xtrain, xtest, ytrain, ytest
 
-def TrainAppendResults(df,y,seed,results,model):
+def cross_validate(features, response, k, folds, standardize, seed):
+    """
+    Train an L0-Regression for each fold and report the cross-validated MSE.
+    """
+    if seed is not None:
+        np.random.seed(seed)
+    samples, dim = features.shape
+    assert samples == response.shape[0]
+    fold_size = int(np.ceil(samples / folds))
+    # Randomly assign each sample to a fold
+    shuffled = np.random.choice(samples, samples, replace=False)
+    roc = 0
+    # Exclude folds from training, one at a time, 
+    #to get out-of-sample estimates of the roc
+    for fold in range(folds):
+        idx = shuffled[fold * fold_size : min((fold + 1) * fold_size, samples)]
+        train_mask = np.ones(samples, dtype=bool)
+        train_mask[idx] = False
+        xtrain, xtest, ytrain, ytest = split_folds(features, response, train_mask)
+        if standardize:
+            scaler = StandardScaler()
+            scaler.fit(xtrain)
+            xtrain = scaler.transform(xtrain)
+            xtest = scaler.transform(xtest)
+        equation = gurobiSVM(xtrain, ytrain,k,gamma=1,M=1000)
+        ypred = findYPred(xtest,equation)
+        roc += roc_auc_score(ytest, ypred) / folds
+    # Report the average out-of-sample roc
+    return roc
+
+def GridSearchK(features, response, maxfeatures,folds=2, standardize=False, seed=None):
+    """
+    Select the best L0-Regression model by performing grid search on the budget.
+    """
+    dim = features.shape[1]
+    best_roc = np.inf
+    best = 0
+    #Find highest possible features
+    max_k = dim if maxfeatures >= dim else maxfeatures
+    # Grid search to find best number of features to consider
+    for i in range(1, max_k + 1):
+        val = cross_validate(features, response, i, folds=folds,
+                             standardize=standardize, seed=seed)
+        if val < best_roc:
+            best_roc = val
+            best = i
+    if standardize:
+        scaler = StandardScaler()
+        scaler.fit(features)
+        features = scaler.transform(features)
+    equation = gurobiSVM(features, response,best,gamma=1,M=1000)
+    return equation
+
+
+
+def findYPred(X,equation):
+    decision_scores = X @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
+
+    #convert to bipolar
+    y_pred = (decision_scores > 0).astype(int)
+    return np.where(y_pred == 0, -1, 1)
+
+
+def TrainAppendResults(df,y,k,seed,results,model):
     #split, standardize, train bss, and predict on specified df and seed, and append data to specified lists
 
     #split data, bss first
     X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, stratify=y,random_state = seed)
 
     #standardize test and train sep
-    scaler = StandardScaler()
-    scaler.fit(X_train)
-    X_train_std = scaler.transform(X_train)
-    X_test_std = scaler.transform(X_test)
+    # scaler = StandardScaler()
+    # scaler.fit(X_train)
+    # X_train_std = scaler.transform(X_train)
+    # X_test_std = scaler.transform(X_test)
 
     #or with cross validation
-    equation = gurobiSVM(X_train_std, y_train.to_numpy(),gamma=1,M=1000)#uses featureAmount for k, or col dim if smaller
+    #equation = gurobiSVM(X_train_std, y_train.to_numpy(),k,gamma=1,M=1000)#uses featureAmount for k, or col dim if smaller
+    equation = GridSearchK(X_train,y_train.to_numpy(),k,standardize=True,seed=seed)
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
-    # Decision values
-    decision_scores = X_test_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
 
-    #convert to bipolar
-    y_pred = (decision_scores > 0).astype(int)
-    y_pred = np.where(y_pred == 0, -1, 1)
+    #y_pred = findYPred(X_test_std,equation)
+    y_pred = findYPred(X_test,equation)
 
     results[model]["acc"].append(accuracy_score(y_test, y_pred))
     results[model]["roc"].append(roc_auc_score(y_test, y_pred))
@@ -154,32 +226,37 @@ def TrainAppendResults(df,y,seed,results,model):
     # plt.show()
 
     #add training results
-    decision_scores = X_train_std @ equation["a"] - equation["beta"]  # (dot product of each row with a) - beta
-
-    #convert to bipolar
-    y_pred = (decision_scores > 0).astype(int)
-    y_pred = np.where(y_pred == 0, -1, 1)
+    #y_pred = findYPred(X_train_std,equation)
+    y_pred = findYPred(X_train,equation)
 
     results[f"{model}train"]["acc"].append(accuracy_score(y_train, y_pred))
     results[f"{model}train"]["roc"].append(roc_auc_score(y_train, y_pred))
     results[f"{model}train"]["f1"].append(f1_score(y_train, y_pred))
 
-    
+    #return weights to use for matched feature comparison
+    return equation["a"]
+
+
+def match_features(givenFeatures,otherFeatures):
+    """otherFeatures is the features that givenFeatures is being compared to (SVM)"""
+    totalMatched = sum(1 for feature in givenFeatures if feature in otherFeatures)
+    return totalMatched/len(givenFeatures)
 
 def save_results(results,featuresSpecified,ModelName):
     output = {
             'acc': results[ModelName]['acc'],
             'roc': results[ModelName]['roc'],
             'f1': results[ModelName]["f1"],
-            "time (sec)": results[ModelName]['timing']
+            "time (sec)": results[ModelName]['timing'],
+            "features specified": featuresSpecified
         }
-    if ModelName == "LLM":
+    if ModelName in ["LLM","LLMtrain"]:
         output["features chosen by LLM"] = results[ModelName]["featuresChosenByLLM"] #extra column that tells how many features the llm returns (should be equal to features specified, but may not be if LLM didn't listen)
-    if ModelName != "SVM":
-        output["features specified"] = featuresSpecified
+    if "matched features" in results[ModelName]:
+        output["features matched to SVM"] = results[ModelName]["matched features"]
     pd.DataFrame(output).to_csv(f'output{ModelName}p{featuresSpecified[0]}.csv', index=True)
 
-def run_trial(model,df,y,seed,featureAmount,results,contextFile=None):
+def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatureNames=None):
     #1 get df for specific model
     start = time.perf_counter()
     match model:
@@ -196,16 +273,31 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None):
             if llmFeatureAmount < 1:
                 print(f"LLM didn't give any features") #error
             results["LLM"]["featuresChosenByLLM"].append(llmFeatureAmount)
+            results["LLMtrain"]["featuresChosenByLLM"].append(llmFeatureAmount)
         case "Rand":
             currdf = df[random.sample(df.columns.tolist(),featureAmount)].copy()
 
     #2 trainappend results
 
-    TrainAppendResults(currdf,y,seed,results,model)
+    Coef = TrainAppendResults(currdf,y,featureAmount,seed,results,model)
     #record time of whole trial
     end = time.perf_counter()
     results[model]["timing"].append(end -start)
     results[f"{model}train"]["timing"].append(end -start)
+
+    if model == "SVM":
+        ChosenFeatureNames = list()
+        for i in range(len(currdf.columns)):
+            if Coef[i] != 0:
+                ChosenFeatureNames.append(currdf.columns[i])
+        return ChosenFeatureNames
+    else:
+        #find matched features with BSS
+        if otherFeatureNames:
+            #do just for train
+            if "matched features" not in results[f"{model}train"]:
+                results[f"{model}train"]["matched features"] = list()
+            results[f"{model}train"]["matched features"].append(match_features(currdf.columns,otherFeatureNames))
                 
 
 
@@ -236,7 +328,7 @@ y = pd.Series([1 if tox == "Toxic" else -1 for tox in y])
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
-TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
+TRIALS = 1 #this number of trials for each unique combination of feature amount and model type
 FEATURES = [100] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
@@ -256,20 +348,17 @@ for featureAmount in FEATURES:
 
     currTrial = 0
     while currTrial < TRIALS:
-        run_trial("SVM",df,y,currTrial,featureAmount,results) 
+        SVMChosenFeatureNames = run_trial("SVM",df,y,currTrial,featureAmount,results) 
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt")
+        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=SVMChosenFeatureNames)
 
 
         #///////[Rand]\\\\\\\
-        run_trial("Rand",df,y,currTrial,featureAmount,results)
+        run_trial("Rand",df,y,currTrial,featureAmount,results,otherFeatureNames=SVMChosenFeatureNames)
         
         currTrial += 1
 
-    for model in ["LLM","Rand"]:
+    for model in ["SVM","LLM","Rand"]:
         save_results(results,featuresSpecified,model)
         save_results(results,featuresSpecified,f"{model}train")
-    fullFeaturesSpecified = [df.shape[0]] *TRIALS
-    save_results(results,fullFeaturesSpecified,"SVM")
-    save_results(results,fullFeaturesSpecified,"SVMtrain")
