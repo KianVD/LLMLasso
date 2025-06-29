@@ -113,7 +113,7 @@ def gurobiSVM(X, y,k,gamma=1.0,M=1000):
         #print(model.Status)
             
         equation = {}
-        if model.Status [GRB.OPTIMAL, GRB.SUBOPTIMAL] and model.SolCount > 0:
+        if model.Status in [GRB.OPTIMAL, GRB.SUBOPTIMAL] and model.SolCount > 0:
             equation['a'] = [a[j].X for j in range(features)]
             equation['beta'] = beta.X
         else:
@@ -173,7 +173,7 @@ def GridSearchK(features, response, maxfeatures,folds=2, standardize=False, seed
     #Find highest possible features
     max_k = dim if maxfeatures >= dim else maxfeatures
     # Grid search to find best number of features to consider
-    for i in range(1, max_k + 1):
+    for i in range(1, max_k + 1,10):
         val = cross_validate(features, response, i, folds=folds,
                              standardize=standardize, seed=seed)
         if val < best_roc:
@@ -203,18 +203,17 @@ def TrainAppendResults(df,y,k,seed,results,model):
     X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, stratify=y,random_state = seed)
 
     #standardize test and train sep
-    # scaler = StandardScaler()
-    # scaler.fit(X_train)
-    # X_train_std = scaler.transform(X_train)
-    # X_test_std = scaler.transform(X_test)
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+    X_train_std = scaler.transform(X_train)
+    X_test_std = scaler.transform(X_test)
 
     #or with cross validation
     #equation = gurobiSVM(X_train_std, y_train.to_numpy(),k,gamma=1,M=1000)#uses featureAmount for k, or col dim if smaller
-    equation = GridSearchK(X_train,y_train.to_numpy(),k,standardize=True,seed=seed)
+    equation = GridSearchK(X_train_std,y_train.to_numpy(),k,standardize=False,seed=seed)
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
 
-    #y_pred = findYPred(X_test_std,equation)
-    y_pred = findYPred(X_test,equation)
+    y_pred = findYPred(X_test_std,equation)
 
     results[model]["acc"].append(accuracy_score(y_test, y_pred))
     results[model]["roc"].append(roc_auc_score(y_test, y_pred))
@@ -226,8 +225,7 @@ def TrainAppendResults(df,y,k,seed,results,model):
     # plt.show()
 
     #add training results
-    #y_pred = findYPred(X_train_std,equation)
-    y_pred = findYPred(X_train,equation)
+    y_pred = findYPred(X_train_std,equation)
 
     results[f"{model}train"]["acc"].append(accuracy_score(y_train, y_pred))
     results[f"{model}train"]["roc"].append(roc_auc_score(y_train, y_pred))
