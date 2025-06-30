@@ -101,19 +101,13 @@ def gurobiSVM(X, y,k,gamma=1.0,M=1000,L0Regularization=False):
                 y[i] * (quicksum(a[j]*X[i][j] for j in range(features)) - beta) >= 1 - slack[i],
                 name=f"margin_{i}"
             )
-        
-        if(L0Regularization):
-            model.setObjective(
-                quicksum(z[j] for j in range(features)) + gamma * quicksum(slack),
-                GRB.MINIMIZE
-            )
-        else:
-            model.setObjective(
-                quicksum(a[j]*a[j] for j in range(features)) + gamma * quicksum(slack),
-                GRB.MINIMIZE
-            )
 
-        model.setParam('OutputFlag', 0)
+        model.setObjective(
+            quicksum(a[j]*a[j] for j in range(features)) + gamma * quicksum(slack),
+            GRB.MINIMIZE
+        )
+
+        model.setParam('OutputFlag', 1)
         model.params.timelimit = 60
         model.params.mipgap = 0.001
 
@@ -121,7 +115,7 @@ def gurobiSVM(X, y,k,gamma=1.0,M=1000,L0Regularization=False):
         #print(model.Status)
             
         equation = {}
-        if model.Status in [GRB.OPTIMAL, GRB.SUBOPTIMAL] and model.SolCount > 0:
+        if model.SolCount > 0:
             equation['a'] = [a[j].X for j in range(features)]
             equation['beta'] = beta.X
         else:
@@ -238,9 +232,9 @@ def TrainAppendResults(df,y,k,seed,results,model):
     X_test_std = scaler.transform(X_test)
 
     #or with cross validation
-    #equation = gurobiSVM(X_train_std, y_train.to_numpy(),k,gamma=1,M=1000)#uses featureAmount for k, or col dim if smaller
+    equation = gurobiSVM(X_train_std, y_train.to_numpy(),50,gamma=1,M=1000,L0Regularization=True)#uses featureAmount for k, or col dim if smaller
     #equation = GridSearchK(X_train_std,y_train.to_numpy(),k,standardize=False,seed=seed)
-    equation = GridSearchG(X_train_std,y_train.to_numpy(),k,standardize=False,seed=seed)
+    #equation = GridSearchG(X_train_std,y_train.to_numpy(),k,standardize=False,seed=seed)
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
 
     y_pred = findYPred(X_test_std,equation)
@@ -356,8 +350,8 @@ y = pd.Series([1 if tox == "Toxic" else -1 for tox in y])
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
-TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [50] #list of features to try [10,15,20]
+TRIALS = 1 #this number of trials for each unique combination of feature amount and model type
+FEATURES = [100] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
@@ -365,10 +359,8 @@ for featureAmount in FEATURES:
     featuresSpecified = [featureAmount] *TRIALS #make a TRIAL long list of the number 'feature'
 
     results = {
-        'SVM' : {"acc":[],"roc":[],"f1":[],"timing": []},
         'LLM' : {"acc":[],"roc":[],"f1":[],"timing": [],"featuresChosenByLLM":[]},
         'Rand' : {"acc":[],"roc":[],"f1":[],"timing": []},
-        'SVMtrain' : {"acc":[],"roc":[],"f1":[],"timing": []},
         'LLMtrain' : {"acc":[],"roc":[],"f1":[],"timing": [],"featuresChosenByLLM":[]},
         'Randtrain' : {"acc":[],"roc":[],"f1":[],"timing": []}
     }
@@ -376,17 +368,17 @@ for featureAmount in FEATURES:
 
     currTrial = 0
     while currTrial < TRIALS:
-        SVMChosenFeatureNames = run_trial("SVM",df,y,currTrial,featureAmount,results) 
+        #SVMChosenFeatureNames = run_trial("SVM",df,y,currTrial,featureAmount,results) 
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=SVMChosenFeatureNames)
+        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt")#,otherFeatureNames=SVMChosenFeatureNames)
 
 
         #///////[Rand]\\\\\\\
-        run_trial("Rand",df,y,currTrial,featureAmount,results,otherFeatureNames=SVMChosenFeatureNames)
+        run_trial("Rand",df,y,currTrial,featureAmount,results)#otherFeatureNames=SVMChosenFeatureNames)
         
         currTrial += 1
 
-    for model in ["SVM","LLM","Rand"]:
+    for model in ["LLM","Rand"]:
         save_results(results,featuresSpecified,model)
         save_results(results,featuresSpecified,f"{model}train")
