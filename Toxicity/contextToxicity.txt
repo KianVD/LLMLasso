@@ -18,4 +18,155 @@ identifed 10 molecular descriptors that predict and increase in the circadian pe
 accuracy of 86.56% with tenfold cross-validation. Our results suggested that these features can be
 used in QSAR studies to design novel nontoxic molecules that exhibit period lengthening activity.
 
-The selected final 10 features includes: "ATSC8c, MATS1e, minsCH3, MATS4e, MATS4s, ATSC7i, SpMin4_Bhp, MLFER_S, ATSC4p, SpMax2_Bhm"
+Te circadian clock is a biochemical oscillator that modulates several physiologic functions such as alertness,
+memory, heart rate, blood pressure, and immune responses through periodic transcriptional regulation15
+Additionally, genetic and epidemiologic studies have linked clock disruption with various adverse metabolic
+phenotypes6 sleep7 and mood disorders8
+
+At the molecular level, four core clock proteins are required to generate circadian rhythm, which are BMAL1,
+CLOCK, CRYPTOCHROMEs (CRYs), and PERIODs (PERs). Among these BMAL1 and CLOCK form heterodimer and bind E-box on DNA (CACGTG) and in turn, initiate transcription of clock-controlled genes (CCGs)
+including Pers and Crys911. Ten, PERs and CRYs accumulate in the cytosol and form a trimeric complex
+with casein kinase I/ (CKI) and then translocate into the nucleus. Trimeric complex interacts with BMAL1/
+CLOCK and inhibits transcription of CCGs12. Period determination in the mammalian circadian clock involves
+the turnover rate of the CRY and PER via post-translational modifcations. FBXL3 and FBXL21 mediate the
+degradation of CRY proteins13,14. A recent next-generation RNA sequencing analysis indicated that 10% of all
+genes and 43% of all protein-coding genes are under the control of the circadian clock in at least one tissue15.
+Several diseases are associated with disruption of circadian rhythm at genetic level1620. Studies show a broad
+role for the clock in normal physiology and its role in mediating pathophysiological conditions. Te importance
+of a robust circadian clock for health is increasingly recognized, and therefore, the identifcation of molecules
+that modulate circadian clocks became a hot topic2128. High-throughput screening is currently instrumental for
+identifying the molecules that afect the circadian clock.
+Structure-based drug discovery methods have advantageous in terms of saving time and reducing cost. Te
+addition of classifcation methods to the drug discovery pipeline will eliminate inappropriate molecules such as
+toxic and inactive. Te feasibility of such implementation between them is shown in quantitative structureactivity relationships (QSAR) models for many targets2937. Given the importance of circadian rhythm in human
+health, with the recent reports of resolved crystal structures of core clock proteins and their interacting partners
+(CRY-FBXL3 (pdbID: 4K0R)38, BMAL1-CLOCK (pdbID:4F3L)39, and CRY-PER (pdbID:4U8H)40, now it is possible to perform in silico screening to fnd small molecules targeting core clock proteins. A recent study reports
+the discovery of a molecule that regulates CLOCK and BMAL1 interaction using the structure-based approach22.
+In this study, we performed in silico screening using CRY1 crystal structure (ID: 4K0R) to fnd molecules that
+regulate circadian rhythm in U2OS cell line. We experimentally tested 171 molecules in terms of toxicity and
+activity. Te 56 molecules were found to be toxic, and 115 molecules were nontoxic to the cell, and 22 molecules
+signifcantly lengthened the period of the circadian rhythm. To identify molecular features, using machine learning, we used 171 molecules and our result showed that 11 features among the available 1538 were the best to
+predict the toxicity of the molecules. Similarly, we determined 10 molecular descriptors that explain the period
+change in circadian rhythm. Our results suggest that these molecular descriptors can be used in QSAR studies
+for the identifcation of nontoxic and circadian period lengthener molecules using big libraries that can be used
+in various CRY1 related disorders.
+Molecular dynamics simulation. Mouse-CRY1 (mCRY1) (PDB ID: 4K0R) which is 93% identical to
+human CRY1 protein was retrieved from the protein databank. Te structure was solvated in a rectangular box
+with TIP3P water molecules with the size of 7.25 105
+3
+ and neutralized with counterions using the NAMD
+(v. 2.6)41 program packages. Ten the system was minimized using the conjugate gradient method and kept
+the backbone atoms of the protein frozen. Ten further minimization steps with relaxed backbone atoms were
+carried out. Te system was heated up to physiological temperature with 10 K increments by running 10 ps
+simulation at each temperature. Constraints were applied during 1.4 ns equilibration simulation where the initial
+force constant on the C atoms of the protein was 2 kcal/mol/2
+ and reduced by 0.5 kcal/mol/2
+ for each 0.4 ns
+equilibration run. CHARMM-PARAM22 force feld42 was used for the molecular dynamics (MD) simulations.
+Afer the equilibration of the system, MD simulation was run at 3100
+ K for 10 ns. Te pressure was controlled by
+the Langevin piston method during the simulations. Te timestep was set to 2 fs and the bonded interactions,
+the van der Waals interactions (12   cutof), long-range electrostatic interactions with particle-mesh Ewald
+(PME) were included for calculating the total force acting on the system. Te last frame of the simulation was
+used as the receptor for the docking simulations. RMSD values were obtained using the RMSD trajectory tool
+of VMD. Backbone atoms (C, CA, N, and O) of each residue were used for RMSD calculation by excluding the
+translational motions
+Molecular docking simulations. More than 8 million small molecules with non-identifed functions were
+used as ligands for the docking. Molecules having the following criteria were fltered to eliminate non-relevant
+molecules: molecules having more than 7 H-bond donors, more than 12 H-bond acceptors, more than 600 Da
+molecular weight, logP>7, more than 8 rotatable bonds, less than 3 aromatic rings43, and less than total of 4
+rings. Openbabel, Autodock4.2, Autodock Tools444 and Autodock Vina45 programs were utilized to prepare
+ligands (small molecules) for the docking. Finally, more than 1million compounds were docked to target pockets by using the Autodock Vina program. Te target pocket for FAD and FBXL3 binding site was determined
+based on the CRY-FBXL3 crystal structure38. Te target pocket on CRY1 was constructed via Autodock Tools.
+Te Center of the box was located on the side chain of Phe296 amino acid residue, and the grid box size was
+determined as 1.9 104
+. Another target pocket was the secondary pocket of CRY1. Te Center of the box
+was located on the side chain of Lys11 amino acid residue, and the grid box size was determined as 2.7 104
+Te binding energy of molecules to CRY1 was calculated by Autodock Vina which uses a novel scoring function combining the knowledge-based and empirical approaches.
+MTT toxicity assay. Human osteosarcoma U2OS cell lines were used for the cytotoxicity assay. Cells were
+cultured and passaged at 37 C under 5% CO2 in 1X medium (fltered DMEM, 10% FBS, 100 g/ml streptomycin, and 100 g/ml penicillin and 2 mM L-Glutamine). Cells were seeded in triplicate to clear 96-well plates with
+4000 cells/well then grown for 48 h. Cells were treated with molecules at desired concentrations (fnal DMSO
+concentration 0.5%) in DMEM and incubated for 48 h. Cell viability was measured by adding tetrazolium dye
+3-[4,5-dimethylthiazol-2-yl]-2,5 diphenyl tetrazolium bromide (MTT) which is converted to insoluble purple
+color formazan because of the mitochondrial activity. Cells were incubated with MTT reagent for 4 h and then
+the medium was replaced with DMSO:EtOH (50:50) mixture. Purple salt was dissolved, and the absorbance of
+Real time bioluminescence monitoring. 5 104
+ U2OS Bmal1-dLuc cells per well were seeded to an
+opaque 96-well plate and cultured overnight as described earlier46. Te next day cells were reset by adding dexamethasone (DXM) (0.1  M fnal) for 2  h. Ten medium was changed to bioluminescence recording media
+which contains the following in 1L: DMEM powder (sigma D-2902, 10X 1L), 0.35 gr sodium bi-carbonate (tissue culture grade, sigma S5761), 3.5gr D(+) glucose powder (tissue culture grade, sigma G7021), 10 mL 1 M
+HEPES bufer (Gibco 15,140122), 2.5 mL Pen/Strep (100 ug/ml), 50 mL 5% FBS and up to 1L sterile milliQ
+water. Luciferin is added freshly with 0.1 mM fnal concentration. Molecules were added to the bioluminescence
+recording media at the desired concentration (0.5% DMSO fnal concentration). Plates were sealed with optically clear flm to prevent evaporation and gas exchange thereby maintaining homeostasis of the cells. Luminescence values were recorded at 32 C for every 30 min with 15 s integration time via Synergy H1 luminometer
+for a week. Te experiment was repeated three times with 3-technical replicates. To obtain the period values
+BioDare2 (biodare2.ed.ac.uk) was used47. Signifcant analysis was performed by using the unpaired t-test with
+Welchs correction
+Establishment of CRY1knockout U2OS cell line. CRY1 knockout U2OS cell line was generated
+using the LentiCRISPRv2 system48. In this study, we used the LentiCRISPRv2-CRY1-T1 construct which was
+described previously49. Tis construct was generated using the following oligos: CRY1 Sense: 5 CACCGCCTT
+CAGG GCGGGGTTGTCG 3; CRY1 Antisense: 5 AAACCGACAACCCCGCCCTGAAGGC 3.
+Te lentivirus preparation, transduction of U2OS cells and selection of the knockout candidates with puromycin (at 0.5 mg/mL concentration) were performed as described previously49. CRY1 knockout candidates were
+screened with immunoblotting using anti-CRY1. To show the specifcity of targeting CRY1, we also analyzed
+CRY2 protein level and actin level, which was probed as the loading control. Te antibodies used for this were as
+follow: anti-CRY1 (A302-614A, Bethyl Labs Inc. Montgomery, TX., USA), anti-CRY2 (A302-615A, Bethyl Labs),
+and anti-Actin (CST- 4967S, Cell Signaling Technology, Boston, MA, USA). HRP-labeled anti-rabbit antibody
+(Termo Fisher Scientifc, Waltham, MA, USA cat: 31460) were used at 1:5000 dilution. Chemiluminescence
+was developed using WesternBright Sirius HRP substrate (Advansta, San Jose, CA, USA, cat no: K-12043-D20)
+and images were captured using the ChemiDoc XRS+system (Bio-Rad).
+Real time bioluminescence of CRY1knockout cells. 40 104 Cry1-/- U2OS cells were seeded to
+35  mm clear plates. Ten, cells were transduced with Bmal1-dLuc lentiviral particles as described in Doruk
+et al22. Next cells were reset with dexamethasone (0.1 M fnal) for 2 h and then media replaced with bioluminescence media described above with DMSO or molecules (fnal DMSO concentration 0.5%). Plates were sealed
+with vacuum grease and placed to luminometer LumiCycle (Actimetrics). Each plate was recorded continuously
+every 10 min for 70 s at 37 C via photomultiplier tubes for a week. Raw luminescence data were analyzed using
+BioDare2 (biodare2.ed.ac.uk)50. For each molecule, the experiment was performed three times with duplicates
+(at least 6 plates per molecule) Te unpaired t-test with Welchs correction was used to evaluate the signifcance.
+Classifcation. PaDEL descriptors of molecules were produced using ChemDes web server51. Te 1538
+descriptors were evaluated to describe the properties of molecules; details of molecular descriptors analyzed
+by PaDEL in ChemDes server were given in Table 1. Te molecules both in the toxicity and period change
+datasets belong to two groups and we can categorize these datasets using binary classifcation, a machine learning approach to classify objects into two groups. Te toxicity molecule set is composed of toxic and nontoxic
+molecules whereas in the period change dataset we have group of molecules that signifcantly change the period 
+and another that does not afect it. Te class membership of each molecule is explained in Results and discussion
+section
+Results and discussion
+Structurebased small molecule design. CRYs are core clock proteins that participate in generating circadian rhythm by acting as strong transcriptional repressors of BMAL1/CLOCK transactivation in
+mammals4,59,60. Studies revealed that CRYs SNPs are associated with diferent types of diseases. For example,
+CRY1 variants have been associated with depression and mood disorders8,61,62, elevated blood pressure and
+hypertension62. Additionally, a CRY1 variant is linked with familial delayed sleep phase disorder and attention
+defcit/hyperactivity disorder18,63. We, therefore, selected mammalian CRY1 as a target for in silico screening
+to fnd molecules that regulate the period of the circadian rhythm. Te CRY1 crystal structure (ID: 4K0R)
+is solved38. Comparison of various CRYs from diferent organisms shows that CRYs have variable length of
+extended C-terminal domains that range from 30 to 300 amino acids3,64,65 (Fig. 1). N-terminal domain has high
+homology to photolyases and is called the PHR domain. Te PHR domain consists of two important regions, 
+called the FAD-binding domain (primary pocket) and an / domain (secondary pocket) which are shown to
+be important for the interaction with the FBXL3 and the CLOCK PAS B domain, respectively66. Terefore, the
+FAD-binding and secondary pockets were selected as targets which are shown to be important for regulating
+repressor activity of the CRYs67,68 (Fig. 1).
+To bring CRY1 structure (PDB ID: 4K0R) near physiological conditions it was minimized and gradually
+heated to 3100
+ K. Ten 10 ns MD simulation was run to obtain structure for the molecular docking simulations.
+To monitor the convergence of the simulation root mean square deviation (RMSD) of backbone atoms (C, N,
+C) of amino acid residues were analyzed throughout the simulation (Fig. S1).
+We initiated in silico screening using a commercially available small molecule library (which contains~8 million molecules). Since docking pockets are large enough to accommodate relatively large molecules, we fltered
+the library to eliminate irrelevant molecules as described in the material-method section. Tus, nearly~1 million
+molecules were docked to primary and secondary pockets of CRY1 by using AutodockVina. Ten, molecules
+were ranked based on their Vina binding energies. Additionally, Pan Assay INterference compoundS (PAINS)
+PAINS-Remover69 was used to eliminate possible false-positive results. We tested 139 molecules designed for
+the primary packet of the CRY1 based on their availability. Similarly, 32 molecules designed for the secondary
+packet of the CRY1 were also tested for toxicity (Table S1).
+Toxicity of molecules. Te toxicity studies were conducted using the human osteosarcoma (U2OS) cell
+line, which was also employed in the circadian bioluminescence assay. We initially tested the toxicity of the
+171 compounds using an MTT (3-[4,5-dimethylthiazol-2-yl]-2,5 diphenyl tetrazolium bromide)-based assay
+at 20  M and determined that 48 of them were non-toxic (Fig.  2). Te remaining 123 molecules that show
+toxic efects at 20 M were further evaluated at 10 M. Results indicated that 26 molecules were not toxic at
+10 M. Finally, the other 97 molecules were tested at 2.5 M and found that 41 molecules were non-toxic at this
+concentration (Fig. 2). Te rest of 56 molecules with relative cell viability<85% at 2.5 M were labeled as toxic
+and, therefore, eliminated from further characterization. As a control, cells treated with 5% DMSO known to
+be toxic. In summary, of 171 tested molecules, 56 were toxic to U2OS cell lines whereas the 115 molecules were
+evaluated as non-toxic molecules at diferent concentrations. Structures of all molecules were provided in the
+supplementary data (Fig. S2).
+Factors determining the period length in the circadian rhythm are quite complex. For example, the deletion of analogous Cry1 and Cry2 genes in mice causes
+short and long period phenotypes, respectively74. CRY binding small molecules discovered by high-throughput
+screening were reported to stabilize the CRY1. Interestingly, these molecules caused diferential circadian phenotype in treated cells e.g. shorter or longer period length25,27. Tus, we focused only on the period lengthening
+molecules. Previously reported 6 molecules binding to CRY1 and lengthened the period of circadian rhythm
+(KL001, GO058, GO061, GO152, GO214, GO216)25,27 were included in the classifcation analysis, GO203 which
+does not change the rhythm included as no-changer. We started the classifcation with 90 molecules of which
+27 are period lengthening, 63 are no-changers. 1538 molecular descriptors were generated for all molecules. 

@@ -107,8 +107,8 @@ def gurobiSVM(X, y,k,gamma=1.0,M=1000,L0Regularization=False):
             GRB.MINIMIZE
         )
 
-        model.setParam('OutputFlag', 1)
-        model.params.timelimit = 60
+        model.setParam('OutputFlag', 0)
+        model.params.timelimit = 120
         model.params.mipgap = 0.001
 
         model.optimize()
@@ -159,7 +159,7 @@ def cross_validate(features, response, k, folds, standardize, seed,gamma=1):
             scaler.fit(xtrain)
             xtrain = scaler.transform(xtrain)
             xtest = scaler.transform(xtest)
-        equation = gurobiSVM(xtrain, ytrain,k,gamma=gamma,M=1000)
+        equation = gurobiSVM(xtrain, ytrain,k/2,gamma=gamma,M=1000,L0Regularization=True)
         ypred = findYPred(xtest,equation)
         roc += roc_auc_score(ytest, ypred) / folds
     # Report the average out-of-sample roc
@@ -168,6 +168,7 @@ def cross_validate(features, response, k, folds, standardize, seed,gamma=1):
 def GridSearchK(features, response, maxfeatures,folds=2, standardize=False, seed=None):
     """
     Select the best L0-Regression model by performing grid search on the budget.
+    Not done
     """
     dim = features.shape[1]
     best_roc = np.inf
@@ -205,8 +206,8 @@ def GridSearchG(features, response, maxfeatures,folds=5, standardize=False, seed
         scaler = StandardScaler()
         scaler.fit(features)
         features = scaler.transform(features)
-    print(best)
-    equation = gurobiSVM(features, response,maxfeatures,gamma=best,M=1000)
+    print("best gamma",best)
+    equation = gurobiSVM(features, response,maxfeatures/2,gamma=best,M=1000,L0Regularization=True)
     return equation
 
 
@@ -232,7 +233,7 @@ def TrainAppendResults(df,y,k,seed,results,model):
     X_test_std = scaler.transform(X_test)
 
     #or with cross validation
-    equation = gurobiSVM(X_train_std, y_train.to_numpy(),50,gamma=1,M=1000,L0Regularization=True)#uses featureAmount for k, or col dim if smaller
+    equation = gurobiSVM(X_train_std, y_train.to_numpy(),k,gamma=1,M=1000,L0Regularization=True)#uses featureAmount for k, or col dim if smaller
     #equation = GridSearchK(X_train_std,y_train.to_numpy(),k,standardize=False,seed=seed)
     #equation = GridSearchG(X_train_std,y_train.to_numpy(),k,standardize=False,seed=seed)
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
@@ -291,7 +292,7 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatur
         
             #find number of features chosen by llm, make sure its not 0
             llmFeatureAmount = currdf.shape[1]
-            print("Number of columsn:" ,llmFeatureAmount)
+            #print("Number of columsn:" ,llmFeatureAmount)
             if llmFeatureAmount < 1:
                 print(f"LLM didn't give any features") #error
             results["LLM"]["featuresChosenByLLM"].append(llmFeatureAmount)
@@ -301,7 +302,7 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatur
 
     #2 trainappend results
 
-    Coef = TrainAppendResults(currdf,y,featureAmount,seed,results,model)
+    Coef = TrainAppendResults(currdf,y,featureAmount/2,seed,results,model)
     #record time of whole trial
     end = time.perf_counter()
     results[model]["timing"].append(end -start)
@@ -350,7 +351,7 @@ y = pd.Series([1 if tox == "Toxic" else -1 for tox in y])
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
-TRIALS = 1 #this number of trials for each unique combination of feature amount and model type
+TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
 FEATURES = [100] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
@@ -359,8 +360,10 @@ for featureAmount in FEATURES:
     featuresSpecified = [featureAmount] *TRIALS #make a TRIAL long list of the number 'feature'
 
     results = {
+        'SVM' : {"acc":[],"roc":[],"f1":[],"timing": []},
         'LLM' : {"acc":[],"roc":[],"f1":[],"timing": [],"featuresChosenByLLM":[]},
         'Rand' : {"acc":[],"roc":[],"f1":[],"timing": []},
+        'SVMtrain' : {"acc":[],"roc":[],"f1":[],"timing": []},
         'LLMtrain' : {"acc":[],"roc":[],"f1":[],"timing": [],"featuresChosenByLLM":[]},
         'Randtrain' : {"acc":[],"roc":[],"f1":[],"timing": []}
     }
@@ -368,17 +371,17 @@ for featureAmount in FEATURES:
 
     currTrial = 0
     while currTrial < TRIALS:
-        #SVMChosenFeatureNames = run_trial("SVM",df,y,currTrial,featureAmount,results) 
+        SVMChosenFeatureNames = run_trial("SVM",df,y,currTrial,featureAmount,results) 
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt")#,otherFeatureNames=SVMChosenFeatureNames)
+        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=SVMChosenFeatureNames)
 
 
         #///////[Rand]\\\\\\\
-        run_trial("Rand",df,y,currTrial,featureAmount,results)#otherFeatureNames=SVMChosenFeatureNames)
+        run_trial("Rand",df,y,currTrial,featureAmount,results,otherFeatureNames=SVMChosenFeatureNames)
         
         currTrial += 1
 
-    for model in ["LLM","Rand"]:
+    for model in ["SVM","LLM","Rand"]:
         save_results(results,featuresSpecified,model)
         save_results(results,featuresSpecified,f"{model}train")
