@@ -1,6 +1,5 @@
-#for spotify dataset
-#includes timing and new gurobi functions with max k
-from openai import OpenAI
+#Toxic dataset gemini
+from google import genai
 import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
@@ -35,19 +34,18 @@ def GetLLMFeatures(contextFilepath, featuresToGet, features):
     with open(contextFilepath,"r") as f:
         context = f.read()
     #get full response
-    response = client.chat.completions.create(
-                model = "gpt-3.5-turbo", #gpt-3.5-turbo, gpt-4o
-                messages=[{"role":"developer","content": context + f"""Your Task:
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=f"""{context}\nYour Task:
                             Please print only a list of the available features in the order of their significance to predicting the desired variable, listing the most significant first, based on the above data. 
                            This list should be in a csv format, seperating features with a comma then a space, maintaining the exact feature names including capitalization.
                             For example, when given a list of features: FeaTure2, feature1, ftr3 : you would return the following: feature1, FeaTure2, ftr3, etc. in that format, ordered by significance.
                            These features should be selected based on their relevance and likelyhood to predict the variable given by and using the context. 
-                           At least {n} of the available features should be returned. The only available features to be picked are given by the user, following this message."""},
-                        {"role":"user","content":", ".join(features)},
-                ],
-            )
+                           At least {n} of the available features should be returned. The only available features to be picked are given by the user, following this message.\n{", ".join(features)}""",
+    )
+
     #get chosen features
-    LLMfeatures = response.choices[0].message.content
+    LLMfeatures = response.text
 
     #print(LLMfeatures)
     finalFeatures = LLMfeatures.split(", ")
@@ -302,7 +300,7 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatur
         
             #find number of features chosen by llm, make sure its not 0
             llmFeatureAmount = currdf.shape[1]
-            #print("Number of columsn:" ,llmFeatureAmount)
+            print("Number of columsn:" ,llmFeatureAmount)
             if llmFeatureAmount < 1:
                 print(f"LLM didn't give any features") #error
             results["LLM"]["featuresChosenByLLM"].append(llmFeatureAmount)
@@ -334,11 +332,11 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatur
                 
 
 
-# Use the OpenAI client library to add your API key.
-load_dotenv(dotenv_path="APIKEY.env")
-client = OpenAI(
-    api_key = os.getenv("APIKEY")
-)
+# Set GEMINI api key
+load_dotenv(dotenv_path="GEMAPIKEY.env")
+apikey = os.getenv("GEMAPIKEY")
+os.environ['GEMINI_API_KEY'] = apikey
+client = genai.Client()
 
 #--------------------------------------------------DATA CLEANING-------------------------------------------------------
 
