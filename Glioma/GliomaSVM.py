@@ -66,6 +66,9 @@ def NarrowDownDFLLM(df,contextFilePath, featuresToGet):
     return df[valid_cols].copy()
 
 def gurobiSVM(X, y,k,gamma=1.0,M=1000,L0Regularization=False,sampleWeights =None):
+    # equation = {"a":[1,1],"beta":0}
+    # return equation
+
     # Create a Gurobi environment and a model object
     with gp.Model("", env=env) as model:
         samples, features = X.shape
@@ -91,7 +94,7 @@ def gurobiSVM(X, y,k,gamma=1.0,M=1000,L0Regularization=False,sampleWeights =None
                 model.addConstr(a[j] >= -M * z[j])
 
             #costrain max k
-            model.addConstr(quicksum(z[j] for j in range(features)) <= k, name="feature_budget")
+            #model.addConstr(quicksum(z[j] for j in range(features)) <= k, name="feature_budget")
         
         #constraints
         for i in range(samples):
@@ -117,7 +120,7 @@ def gurobiSVM(X, y,k,gamma=1.0,M=1000,L0Regularization=False,sampleWeights =None
         model.params.mipgap = 0.001
 
         model.optimize()
-        #print(model.Status)
+        print(model.Status)
             
         equation = {}
         if model.SolCount > 0:
@@ -268,20 +271,16 @@ def TrainAppendResults(df,y,k,seed,results,model):
     #split data, bss first
     X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, stratify=y,random_state = seed)
 
-    #standardize test and train sep
+    #standardize test and train
     scaler = StandardScaler()
     scaler.fit(X_train)
     X_train_std = scaler.transform(X_train)
     X_test_std = scaler.transform(X_test)
 
-    #or with cross validation
-    #equation = gurobiSVM(X_train_std, y_train.to_numpy(),k,gamma=1,M=1000,L0Regularization=True)#uses featureAmount for k, or col dim if smaller
     
-    weights = np.where(y_train == 1,1.53,.74)
-    #equation = gurobiSVM(X_train_std, y_train.to_numpy(),k,gamma=1,M=1000,L0Regularization=True,sampleWeights=weights)
-    equation = cross_validate_model(X_train_std,y_train.to_numpy(),k,5,True,seed,gamma=1,sampleWeights=weights)
-    #equation = GridSearchK(X_train_std,y_train.to_numpy(),k,standardize=False,seed=seed)
-    #equation = GridSearchG(X_train_std,y_train.to_numpy(),k,standardize=False,seed=seed)
+    #equation = gurobiSVM(X_train_std, y_train,k/2,gamma=1,M=1000,L0Regularization=True)
+    #or with cross validation
+    equation = cross_validate_model(X_train_std,y_train,k/2,5,True,seed,gamma=1)
     # Predict and evaluate (@ is matrix multiplication) #headers? array types?
 
     y_pred = findYPred(X_test_std,equation)
@@ -348,7 +347,7 @@ def run_trial(model,df,y,seed,featureAmount,results,contextFile=None,otherFeatur
 
     #2 trainappend results
 
-    Coef = TrainAppendResults(currdf,y,featureAmount/2,seed,results,model)
+    Coef = TrainAppendResults(currdf,y,featureAmount,seed,results,model)
     #record time of whole trial
     end = time.perf_counter()
     results[model]["timing"].append(end -start)
@@ -379,26 +378,24 @@ client = genai.Client()
 #--------------------------------------------------DATA CLEANING-------------------------------------------------------
 
 #find dataset with 1000 features (genes?)
-df = pd.read_csv("Toxicity/ToxicityData.csv") 
+df = pd.read_csv("Glioma/TCGA_InfoWithGrade.csv") 
 #drop rows where the target is na
-df = df[~df["Class"].isna()]
+df = df[~df["Grade"].isna()]
 
 #get numerilc cols 
 numerical_cols = df.select_dtypes(include='number').columns.tolist()
 #fillna for numerical
 df[numerical_cols] = df[numerical_cols].fillna(df[numerical_cols].mean())
 #separate target and df
-y = df["Class"]
-df.drop("Class",axis=1,inplace=True)
-
-#turn categorical y into binary 1 for toxic 0 for nontoxic
-y = pd.Series([1 if tox == "Toxic" else -1 for tox in y])
+y = df["Grade"]
+df.drop("Grade",axis=1,inplace=True)
+y = np.where(y == 0, -1, 1)
 
 #--------------------------------------------------MODEL TRAINING-------------------------------------------------------
 
 
-TRIALS = 1 #this number of trials for each unique combination of feature amount and model type
-FEATURES = [100] #list of features to try [10,15,20]
+TRIALS = 10 #this number of trials for each unique combination of feature amount and model type
+FEATURES = [10] #list of features to try [10,15,20]
 
 for featureAmount in FEATURES:
     #initialize lists to keep track of data
@@ -420,7 +417,7 @@ for featureAmount in FEATURES:
         SVMChosenFeatureNames = run_trial("SVM",df,y,currTrial,featureAmount,results) 
 
         #///////[LLM]\\\\\\\
-        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Toxicity/contextToxicity.txt",otherFeatureNames=SVMChosenFeatureNames)
+        run_trial("LLM",df,y,currTrial,featureAmount,results,contextFile="Glioma/contextGlioma.txt",otherFeatureNames=SVMChosenFeatureNames)
 
 
         #///////[Rand]\\\\\\\
